@@ -6,3 +6,4 @@ langchain
 langchain-openai
 langgraph
 yfinance
+pydantic-settings
