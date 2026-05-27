@@ -1,0 +1,24 @@
+# PortfolioPilot infra. V2: postgres only.
+# V8 will add a `backend` service here (currently the backend runs on the
+# host via `uvicorn` so reload is fast during development).
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: portfoliopilot-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: portfoliopilot
+      POSTGRES_PASSWORD: portfoliopilot
+      POSTGRES_DB: portfoliopilot
+    ports:
+      - "5432:5432"
+    volumes:
+      - portfoliopilot_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U portfoliopilot -d portfoliopilot"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  portfoliopilot_pg:

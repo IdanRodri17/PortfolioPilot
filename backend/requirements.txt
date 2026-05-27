@@ -7,3 +7,5 @@ langchain-openai
 langgraph
 yfinance
 pydantic-settings
+sqlalchemy
+psycopg[binary]
