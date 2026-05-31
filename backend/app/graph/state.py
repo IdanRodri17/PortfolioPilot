@@ -65,7 +65,9 @@ class PortfolioState(TypedDict, total=False):
     # the reducer concatenates them into the final accumulated list.
     sentiment_findings: Annotated[List[dict], add]
 
-    # ─── Populated by risk_agent (V3 step 4) ───
+    # Populated by risk_agent (V3 step 4)
+    symbol: str
+
     # Single writer, no reducer needed. Type stays loose (dict) until
     # Step 4 lands a Pydantic RiskAnalysis schema if it earns its keep.
     risk_analysis: Dict[str, Any]
