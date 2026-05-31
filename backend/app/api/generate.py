@@ -1,18 +1,29 @@
 """
 Routes for report generation.
 
-V1 exposes a single GET endpoint that invokes the compiled LangGraph
-for a hardcoded demo portfolio and returns the resulting FinalReport.
-V2 will replace the hardcoded portfolio with a DB lookup.
+V1: hardcoded portfolio {"AAPL": 10}.
+V2: portfolio fetched from DB by user_id. Graph signature unchanged.
+V3: same handler, graph fans out internally to parallel agents.
+V4: streaming variant via SSE replaces the JSON return.
+V6: this endpoint may emit human_input_required mid-stream; the
+    client resumes against POST /api/resume-graph.
 
-The compiled graph is injected via Depends(get_graph). This keeps the
-handler decoupled from the graph singleton (testable in isolation via
-app.dependency_overrides) and makes the graph's role at the boundary
-explicit.
+Architectural note — why DB lookup lives here, not in a node:
+    The graph is a pure pipeline: portfolio_dict → FinalReport. It
+    does not know portfolios live in Postgres. This boundary is
+    load-bearing for V8: the daily-digest scheduler will fetch
+    every user's portfolio, loop, and pass each assets dict into
+    the same graph. If DB access leaked into data_ingestion, the
+    scheduler would have to re-fetch (waste) or special-case the
+    node (entangle). Same reason makes the graph trivially testable
+    — no DB fixtures, just a dict.
 """
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.orm import Session
 
+from app.db.base import get_db
+from app.db.models import User
 from app.graph.builder import graph as compiled_graph
 from app.schemas.report import FinalReport
 
@@ -22,12 +33,9 @@ router = APIRouter()
 def get_graph():
     """Provider for the compiled LangGraph singleton.
 
-    The graph is built once at module import (see graph/builder.py).
-    This provider returns the same instance for every request.
-    No @lru_cache needed — the singleton lives at module scope already;
-    this function is a cheap pointer return.
-
-    In tests, override via app.dependency_overrides[get_graph].
+    Graph is built once at module import (graph/builder.py). Returns
+    the same instance per call; tests override via
+    app.dependency_overrides[get_graph].
     """
     return compiled_graph
 
@@ -39,19 +47,43 @@ def get_graph():
 )
 async def generate_report(
     user_id: str,
+    db: Session = Depends(get_db),
     graph=Depends(get_graph),
 ) -> FinalReport:
-    """Run the LangGraph end-to-end and return the FinalReport.
+    """Run the LangGraph end-to-end against the user's stored portfolio.
 
-    V1 uses a hardcoded portfolio. V2 reads from the portfolios table
-    keyed by user_id.
+    Flow:
+        1. Lookup User + Portfolio by user_id.
+        2. 404 if either is missing.
+        3. Hand the assets dict to the graph.
+        4. Return the synthesizer's FinalReport.
+
+    risk_profile is read but not yet propagated into State — V3
+    introduces the risk_agent and extends PortfolioState to carry it.
+    Holding off here keeps V2 narrowly scoped to "swap the source of
+    the portfolio dict, leave the graph alone."
+
+    Concurrency note:
+        db.get() is sync and briefly blocks the event loop. Negligible
+        at MVP scale. The session stays open during graph.ainvoke()
+        (LLM round-trips can be several seconds). Fine for single-user
+        demo; V8 multi-user digest will either release the session
+        earlier or move to async SQLAlchemy.
     """
-    # V1: hardcoded portfolio. Replaced by DB read in V2.
-    portfolio = {"AAPL": 10.0}
+    user = db.get(User, user_id)
+    if user is None or user.portfolio is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No portfolio found for user_id '{user_id}'.",
+        )
 
+    # The graph's input contract is identical to V1/V2 in shape — only
+    # the keys grow over versions. risk_profile joins the inputs in V3
+    # because risk_agent (V3 step 4) consumes it.
     initial_state = {
         "user_id": user_id,
-        "portfolio": portfolio,
+        "portfolio": user.portfolio.assets,
+        "risk_profile": user.risk_profile,
     }
 
     final_state = await graph.ainvoke(initial_state)
