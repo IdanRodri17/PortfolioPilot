@@ -47,6 +47,7 @@ class Settings(BaseSettings):
     # ─── Required ───
     openai_api_key: str
     database_url: str
+    tavily_api_key: str
 
     # ─── Optional with defaults ───
     openai_model_synthesizer: str = "gpt-4o-mini"
