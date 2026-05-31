@@ -21,6 +21,7 @@ from app.db.base import Base, engine
 import app.db.models  # noqa: F401
 
 from app.api.generate import router as generate_router
+from app.api.portfolio import router as portfolio_router
 
 
 def create_app() -> FastAPI:
@@ -52,6 +53,7 @@ def create_app() -> FastAPI:
         return {"status": "ok"}
 
     app.include_router(generate_router)
+    app.include_router(portfolio_router)
 
     return app
 
