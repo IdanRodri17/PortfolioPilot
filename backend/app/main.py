@@ -9,6 +9,7 @@ rather than a refactor.
 """
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 # Importing config first ensures load_dotenv() runs and Settings is
 # validated before anything else (e.g., the graph) tries to touch env vars.
@@ -22,6 +23,19 @@ import app.db.models  # noqa: F401
 
 from app.api.generate import router as generate_router
 from app.api.portfolio import router as portfolio_router
+
+
+# Browser origins permitted to call the API. The Next.js dev server (V4b)
+# runs on :3000 — a different origin from the backend's :8000 — so its
+# EventSource and fetch calls are cross-origin and the browser blocks them
+# without these response headers. curl sends no Origin, which is why the
+# V4a SSE smoke test passed before this middleware existed: the browser is
+# the first cross-origin caller. Replace with the real deployed origin
+# (or read from settings) post-MVP.
+_ALLOWED_ORIGINS = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+]
 
 
 def create_app() -> FastAPI:
@@ -44,8 +58,18 @@ def create_app() -> FastAPI:
 
     app = FastAPI(
         title="PortfolioPilot",
-        version="0.2.0",
-        description="AI wealth manager — V2 (DB-backed portfolio CRUD)",
+        version="0.4.0",
+        description="AI wealth manager — V4 (SSE streaming over the V3 multi-agent graph)",
+    )
+
+    # Starlette middleware wraps the whole app regardless of when it's
+    # added relative to the routers, so every route (incl. the SSE
+    # stream) gets the CORS headers.
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=_ALLOWED_ORIGINS,
+        allow_methods=["*"],
+        allow_headers=["*"],
     )
 
     @app.get("/api/health", summary="Liveness check")
