@@ -1,57 +1,45 @@
 "use client";
 
 /**
- * Temporary scaffolding — now the step-3 smoke test: a button that fires
- * useReportStream and dumps phase, the accumulated status feed, and the
- * final report. This is the curl trace flowing into React state. Step 4
- * replaces this with the real dashboard components.
+ * Temporary harness — step 4b swaps the raw report <pre> for the
+ * FinalReportView component. Button + LiveStatusFeed stay; 4c assembles
+ * everything (plus the PortfolioOverview pie) into the real dashboard
+ * page and retires this harness.
  */
 
 import { useReportStream } from "@/lib/useReportStream";
+import { LiveStatusFeed } from "@/components/LiveStatusFeed";
+import { FinalReportView } from "@/components/FinalReportView";
 
 export default function Home() {
   const { phase, statuses, report, error, start } = useReportStream();
 
   return (
-    <main className="p-8 font-sans">
-      <h1 className="text-xl font-semibold">PortfolioPilot — stream harness</h1>
+    <main className="min-h-screen bg-slate-950 p-8 font-sans text-slate-100">
+      <h1 className="text-xl font-semibold">PortfolioPilot — dashboard (building)</h1>
 
       <button
         onClick={() => start("idan_demo")}
         disabled={phase === "streaming"}
-        className="mt-4 rounded bg-blue-600 px-4 py-2 text-white disabled:opacity-50"
+        className="mt-4 rounded-lg bg-emerald-600 px-4 py-2 font-medium text-white transition-colors hover:bg-emerald-500 disabled:opacity-50"
       >
-        {phase === "streaming" ? "Streaming…" : "Generate report"}
+        {phase === "streaming" ? "Analyzing…" : "Generate report"}
       </button>
 
-      <p className="mt-4 text-sm text-gray-400">phase: {phase}</p>
-
-      <p className="mt-4 text-sm text-gray-400">
-        status feed ({statuses.length}):
-      </p>
-      <pre className="mt-1 rounded bg-gray-900 p-3 text-sm text-gray-100">
-        {statuses
-          .map(
-            (s) =>
-              `${s.node} — ${s.phase}` +
-              (s.metadata.symbol ? ` (${s.metadata.symbol})` : ""),
-          )
-          .join("\n") || "(none yet)"}
-      </pre>
+      <div className="mt-6 max-w-2xl">
+        <LiveStatusFeed statuses={statuses} phase={phase} />
+      </div>
 
       {error && (
-        <pre className="mt-4 rounded bg-red-900 p-3 text-sm text-red-100">
+        <pre className="mt-4 max-w-2xl rounded bg-red-950 p-3 text-sm text-red-200">
           {JSON.stringify(error, null, 2)}
         </pre>
       )}
 
       {report && (
-        <>
-          <p className="mt-4 text-sm text-gray-400">final report:</p>
-          <pre className="mt-1 rounded bg-gray-900 p-3 text-sm text-gray-100">
-            {JSON.stringify(report, null, 2)}
-          </pre>
-        </>
+        <div className="mt-6 max-w-2xl">
+          <FinalReportView report={report} />
+        </div>
       )}
     </main>
   );
