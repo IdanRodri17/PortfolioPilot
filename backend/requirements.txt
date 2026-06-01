@@ -8,5 +8,7 @@ langgraph
 yfinance
 pydantic-settings
 sqlalchemy
-psycopg[binary]
+psycopg[binary,pool]
 tavily-python
+langgraph-checkpoint-postgres
+
