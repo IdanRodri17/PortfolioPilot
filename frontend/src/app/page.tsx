@@ -1,18 +1,18 @@
 "use client";
 
 /**
- * Dashboard page — the real V4b dashboard, replacing the build harness.
+ * Dashboard page — the real V4b dashboard.
  *
- * Layout: a centered max-width container (this is the fix for the harness's
- * "everything jammed to the left" look). On large screens it splits into two
- * columns — a fixed-width left column with the Holdings panel and a flexible
- * right column with the live pipeline and the report. It stacks on small
- * screens. The Generate control lives in the header.
+ * Layout: a centered max-width container splitting into two columns on large
+ * screens — a fixed-width left column with the Holdings panel and a flexible
+ * right column with the live pipeline and the report. Stacks on small screens.
+ * The Generate control and the link to the editor live in the header.
  *
  * user_id is hardcoded to the demo user; there is no auth until V7, so no
  * user switcher.
  */
 
+import Link from "next/link";
 import { useReportStream } from "@/lib/useReportStream";
 import { LiveStatusFeed } from "@/components/LiveStatusFeed";
 import { FinalReportView } from "@/components/FinalReportView";
@@ -30,6 +30,12 @@ export default function DashboardPage() {
           <div>
             <h1 className="text-2xl font-semibold tracking-tight">PortfolioPilot</h1>
             <p className="mt-1 text-sm text-slate-500">AI portfolio analysis</p>
+            <Link
+              href="/portfolio"
+              className="mt-1 inline-block text-sm text-emerald-400 transition-colors hover:text-emerald-300"
+            >
+              Edit portfolio →
+            </Link>
           </div>
           <button
             onClick={() => start(DEMO_USER)}
