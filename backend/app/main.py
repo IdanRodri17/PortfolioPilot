@@ -28,6 +28,8 @@ import app.db.models  # noqa: F401
 from app.graph.persistence.store import open_store, close_store
 from app.api.generate import router as generate_router
 from app.api.portfolio import router as portfolio_router
+from app.api.reports import router as reports_router
+from app.api.memories import router as memories_router
 
 # Browser origins permitted to call the API. The Next.js dev server runs on
 # :3000 — a different origin from the backend's :8000 — so its EventSource
@@ -101,6 +103,8 @@ def create_app() -> FastAPI:
 
     app.include_router(generate_router)
     app.include_router(portfolio_router)
+    app.include_router(reports_router)
+    app.include_router(memories_router)
 
     return app
 
