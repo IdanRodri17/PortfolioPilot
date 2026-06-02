@@ -69,7 +69,16 @@ router = APIRouter()
 # the user cares about. Adding a node in a future version (memory_loader
 # in V5, guardrail/human_review/memory_saver in V6) means adding its name
 # here so it shows up in the feed.
-_STATUS_NODES = {"data_ingestion", "sentiment_agent", "risk_agent", "synthesizer"}
+# ... means adding its name here so it shows up in the feed. memory_loader
+# was added in V5 step 3b; memory_extractor lands in step 5, and the V6
+# guardrail/human_review/memory_saver nodes will join then.
+_STATUS_NODES = {
+    "memory_loader",
+    "data_ingestion",
+    "sentiment_agent",
+    "risk_agent",
+    "synthesizer",
+}
 
 
 def get_graph():
@@ -145,14 +154,19 @@ async def _report_event_stream(graph, initial_state: dict):
                     )
 
     except Exception as exc:  # noqa: BLE001 — the stream must surface, not swallow
-        logger.exception("generate-report stream failed for state=%s", initial_state.get("user_id"))
+        logger.exception(
+            "generate-report stream failed for state=%s", initial_state.get("user_id")
+        )
         yield _format_sse("error", {"code": "GRAPH_ERROR", "message": str(exc)})
         return
 
     if final_report is None:
         yield _format_sse(
             "error",
-            {"code": "NO_REPORT", "message": "Graph finished without a final_report in state."},
+            {
+                "code": "NO_REPORT",
+                "message": "Graph finished without a final_report in state.",
+            },
         )
         return
 

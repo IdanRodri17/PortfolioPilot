@@ -12,7 +12,9 @@ Versioning:
         1 risk_agent. Synthesizer is the implicit barrier — it fires
         only when every Send branch has completed and the reducer
         has merged sentiment_findings into State.
-    V5: memory_loader prepended; memory_extractor appended.
+    V5: memory_loader prepended as the entrypoint; the graph is compiled
+        WITH the PostgresStore so LangGraph can inject it into memory
+        nodes. memory_extractor appended in step 5.
     V6: guardrail cycle between synthesizer and memory chain;
         human_review interrupt + PostgresSaver checkpointer attached
         at compile time via _build_graph's parameters.
@@ -22,8 +24,11 @@ from typing import List
 
 from langgraph.constants import Send
 from langgraph.graph import StateGraph, START, END
+from langgraph.store.base import BaseStore
 
 from app.graph.state import PortfolioState
+from app.graph.persistence.store import store as memory_store
+from app.graph.nodes.memory_loader import memory_loader
 from app.graph.nodes.data_ingestion import data_ingestion
 from app.graph.nodes.synthesizer import synthesizer
 from app.graph.nodes.sentiment_agent import sentiment_agent
@@ -62,28 +67,39 @@ def fan_out_to_agents(state: PortfolioState) -> List[Send]:
     return sends
 
 
-def _build_graph():
-    """Construct and compile the V3 PortfolioPilot graph.
+def _build_graph(store: BaseStore | None = None):
+    """Construct and compile the PortfolioPilot graph.
 
-    Topology:
-        START → data_ingestion → [fan_out_to_agents]
-                                  ├─→ sentiment_agent (× N) ─┐
-                                  └─→ risk_agent ────────────┴─→ synthesizer → END
+    Topology (V5):
+        START → memory_loader → data_ingestion → [fan_out_to_agents]
+                                                  ├─→ sentiment_agent (× N) ─┐
+                                                  └─→ risk_agent ────────────┴─→ synthesizer → END
 
     The list arg ["sentiment_agent", "risk_agent"] on add_conditional_edges
     is the enumeration of all possible Send targets — required by
     LangGraph for static graph validation. Adding a new fan-out target
     in a future version (e.g., a macro_context_agent) requires updating
     this list too.
+
+    store: the PostgresStore handed to compile(). Passing it here is what
+    makes LangGraph inject it into any node whose signature requests
+    `store: BaseStore` — memory_loader now, memory_extractor in step 5.
+    Defaulted to None so tests can compile a store-less graph (or inject a
+    fake). V6 adds a `checkpointer=` parameter the same way.
     """
     builder = StateGraph(PortfolioState)
 
+    builder.add_node("memory_loader", memory_loader)
     builder.add_node("data_ingestion", data_ingestion)
     builder.add_node("sentiment_agent", sentiment_agent)
     builder.add_node("risk_agent", risk_agent)
     builder.add_node("synthesizer", synthesizer)
 
-    builder.add_edge(START, "data_ingestion")
+    # memory_loader runs first: it reads portfolio + risk_profile (both in
+    # the initial_state from the handler) and loads long_term_memory before
+    # any market data is fetched. It needs nothing from data_ingestion.
+    builder.add_edge(START, "memory_loader")
+    builder.add_edge("memory_loader", "data_ingestion")
 
     # Fan-out: data_ingestion's "next" is determined dynamically by
     # fan_out_to_agents returning a list of Sends, NOT by a single
@@ -102,8 +118,12 @@ def _build_graph():
 
     builder.add_edge("synthesizer", END)
 
-    return builder.compile()
+    # Compiling WITH the store is what enables store injection into nodes.
+    # compile(store=None) is valid too — a store-less graph where memory
+    # nodes would fail if invoked (fine for tests that don't exercise them).
+    return builder.compile(store=store)
 
 
-# Module-level singleton. Importers get the same compiled graph.
-graph = _build_graph()
+# Module-level singleton, compiled with the PostgresStore singleton.
+# Importers get the same compiled graph.
+graph = _build_graph(store=memory_store)
