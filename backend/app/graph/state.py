@@ -54,6 +54,13 @@ class PortfolioState(TypedDict, total=False):
     # "conservative" | "balanced" | "aggressive" — populated by the
     # handler from User.risk_profile (DB). Read by risk_agent (V3 step 4).
 
+    # ─── Loaded by memory_loader (V5) ───
+    long_term_memory: List[dict]
+    # Past insights retrieved from PostgresStore via semantic search,
+    # ordered most-relevant-first. Each element is a stored value dict,
+    # e.g. {"insight": "...", "context": "..."}. Single writer
+    # (memory_loader), so no reducer — default overwrite is correct.
+
     # ─── Populated by data_ingestion ───
     market_data: Dict[str, dict]
     # e.g. {"AAPL": {"price": 220.5, "change_24h_percent": 1.2}}
