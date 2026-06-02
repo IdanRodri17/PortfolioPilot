@@ -7,8 +7,12 @@ V3: same handler, graph fans out internally to parallel agents.
 V4: SSE streaming replaces the JSON return. The handler still does the
     DB lookup synchronously, then hands a self-contained event generator
     to StreamingResponse. graph.astream_events() drives the stream.
+V5: the handler mints a report_id (uuid4) and the generator archives the
+    finished FinalReport to the reports table via its OWN short-lived
+    session, then includes report_id in the report_complete payload.
 V6: this endpoint may emit human_input_required mid-stream; the client
-    resumes against POST /api/resume-graph.
+    resumes against POST /api/resume-graph. report_id becomes the
+    checkpointer thread_id.
 
 Architectural note — why DB lookup lives here, not in a node:
     The graph is a pure pipeline: portfolio_dict -> FinalReport. It does
@@ -19,42 +23,43 @@ Architectural note — why DB lookup lives here, not in a node:
     (waste) or special-case the node (entangle). Same reason makes the
     graph trivially testable — no DB fixtures, just a dict.
 
-Architectural note — why the generator is DB-free:
-    With StreamingResponse, the handler returns immediately and the
-    generator runs while the response streams. Rather than reason about
-    how long the get_db session stays alive across that window, we read
-    everything we need (assets dict, risk_profile) into a plain
-    initial_state dict BEFORE returning, and the generator touches only
-    that dict and the compiled graph. No ORM objects cross into the
-    stream. This is pattern #7 (API as I/O boundary) applied to SSE.
+Architectural note — two kinds of DB access in this file:
+    1. The request-scoped get_db session does the portfolio LOOKUP, before
+       streaming starts. We never hold it across the stream.
+    2. The report ARCHIVE write (V5) happens inside the generator, but with
+       its OWN short-lived SessionLocal opened and closed within a single
+       await-free window — not the request session. The generator stays
+       free of the request session; it just borrows a fresh one for one
+       insert. No ORM objects cross the streaming window (pattern #7).
 
-Why we don't emit `token` events in V4:
-    The synthesizer uses .with_structured_output(FinalReport), so the
-    model emits one JSON/tool-call object. Streaming its tokens yields
-    partial JSON, not clean narrative prose. The `token` event type stays
-    reserved in the taxonomy (§5.2) but is unused in V4. The streaming
-    that carries the demo is the burst of `status` events from the N
-    parallel sentiment_agent Send branches.
+Why report persistence is best-effort:
+    The report is already produced and about to be streamed. If archiving
+    it fails (DB blip), we log and still emit report_complete — filing a
+    copy must never deny the user a result they already have (pattern #22).
+
+Why we don't emit `token` events: the synthesizer uses
+    .with_structured_output(FinalReport), so the model emits one JSON/
+    tool-call object; streaming its tokens yields partial JSON, not prose.
+    The streaming that carries the demo is the burst of `status` events.
 
 Why sentiment start/end are paired by run_id:
     Each parallel sentiment_agent Send branch is one runnable invocation,
     and astream_events gives that invocation a single run_id shared by its
-    on_chain_start and on_chain_end events. The start event exposes the
-    branch's symbol via data.input; the end event does not. So we stash
-    run_id -> symbol on start and look it up on end, making every end
-    event self-describing. Without this, end events are symbol-less and
-    the frontend cannot match an end to the start branch it closes.
+    on_chain_start and on_chain_end. The start event exposes the branch's
+    symbol via data.input; the end event does not. So we stash
+    run_id -> symbol on start and look it up on end.
 """
 
 import json
 import logging
+from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
-from app.db.base import get_db
-from app.db.models import User
+from app.db.base import get_db, SessionLocal
+from app.db.models import User, Report
 from app.graph.builder import graph as compiled_graph
 
 logger = logging.getLogger(__name__)
@@ -65,13 +70,10 @@ router = APIRouter()
 # The graph node names we surface to the client as `status` events.
 # astream_events emits on_chain_start/end for many runnables — the
 # top-level graph, conditional-edge functions, prompts, chat models,
-# parsers. Filtering on this set keeps the status feed to the four nodes
-# the user cares about. Adding a node in a future version (memory_loader
-# in V5, guardrail/human_review/memory_saver in V6) means adding its name
-# here so it shows up in the feed.
-# ... means adding its name here so it shows up in the feed. memory_loader
-# was added in V5 step 3b; memory_extractor lands in step 5, and the V6
-# guardrail/human_review/memory_saver nodes will join then.
+# parsers. Filtering on this set keeps the status feed to the nodes the
+# user cares about. memory_loader (V5 step 3b) and memory_extractor (V5
+# step 5b) were added here; the V6 guardrail/human_review/memory_saver
+# nodes will join then.
 _STATUS_NODES = {
     "memory_loader",
     "data_ingestion",
@@ -98,26 +100,45 @@ def _format_sse(event_type: str, data: dict) -> str:
     return f"event: {event_type}\ndata: {json.dumps(data)}\n\n"
 
 
-async def _report_event_stream(graph, initial_state: dict):
+def _persist_report(report_id: str, user_id: str, payload: dict) -> None:
+    """Archive a finished report to the reports table (V5).
+
+    Opens its OWN short-lived session — NOT the request's get_db session.
+    The generator stays free of the request session (which may close while
+    the stream is still open); this session is opened, used for one insert,
+    and closed within a single await-free window at the moment of the write.
+
+    confidence_flag is a coarse label derived from the report's confidence.
+    The V6 guardrail may set this instead once it exists.
+    """
+    confidence = payload.get("confidence", 0.0)
+    flag = "high" if confidence >= 0.6 else "low"
+    db = SessionLocal()
+    try:
+        db.add(
+            Report(
+                id=report_id,
+                user_id=user_id,
+                raw_result=payload,
+                confidence_flag=flag,
+            )
+        )
+        db.commit()
+    finally:
+        db.close()
+
+
+async def _report_event_stream(graph, initial_state: dict, report_id: str):
     """Async generator mapping the astream_events firehose to SSE events.
 
-    Yields, in wire order:
-        - one `status` (phase=start) per node entry, with {"symbol": ...}
-          metadata on sentiment_agent branches so the feed names the asset;
-        - one `status` (phase=end) per node exit, with the same {"symbol"}
-          on sentiment_agent branches (recovered via run_id) so the client
-          can match each end to the start branch it closes;
-        - exactly one terminal event: `report_complete` carrying the full
-          FinalReport JSON, or `error` if the graph raised or finished
-          without producing a report.
-
-    Everything astream_events emits that is not an on_chain_start/end for
-    a node in _STATUS_NODES is dropped. The final report is captured off
-    whichever on_chain_end carries it.
+    Yields status events per node entry/exit, then exactly one terminal
+    event: report_complete (carrying the FinalReport plus report_id) or
+    error. The finished report is archived to the reports table (best
+    effort) just before report_complete is emitted.
     """
     final_report = None
     # run_id -> symbol, so a sentiment_agent's end event can carry the same
-    # symbol its start event did. Cleared implicitly when the stream ends.
+    # symbol its start event did.
     run_symbols: dict[str, str] = {}
 
     try:
@@ -178,7 +199,21 @@ async def _report_event_stream(graph, initial_state: dict):
         if hasattr(final_report, "model_dump")
         else final_report
     )
-    yield _format_sse("report_complete", payload)
+
+    # Archive at the boundary (best-effort) before announcing completion.
+    try:
+        _persist_report(report_id, initial_state["user_id"], payload)
+    except Exception:  # noqa: BLE001 — never deny a result over a failed archive
+        logger.exception(
+            "Failed to persist report %s for %s",
+            report_id,
+            initial_state.get("user_id"),
+        )
+
+    # report_id rides alongside the report so the client can deep-link the
+    # just-generated report to /history. It is an extra field on the
+    # payload — the dashboard ignores it; the history view reads it.
+    yield _format_sse("report_complete", {**payload, "report_id": report_id})
 
 
 @router.get(
@@ -196,11 +231,11 @@ async def generate_report(
         1. Lookup User + Portfolio by user_id (sync, at the boundary).
         2. 404 if either is missing.
         3. Read assets + risk_profile into a plain initial_state dict.
-        4. Hand a DB-free event generator to StreamingResponse.
+        4. Mint report_id (also the V6 checkpointer thread_id).
+        5. Hand a request-session-free event generator to StreamingResponse.
 
     GET (not POST) because the browser's native EventSource only supports
-    GET; the portfolio is resolved server-side from user_id. No
-    response_model here — a streaming body has no single fixed schema.
+    GET; the portfolio is resolved server-side from user_id.
     """
     user = db.get(User, user_id)
     if user is None or user.portfolio is None:
@@ -214,9 +249,12 @@ async def generate_report(
         "portfolio": user.portfolio.assets,
         "risk_profile": user.risk_profile,
     }
+    # Generated here so it can be reused as the V6 checkpointer thread_id
+    # and returned to the client in report_complete.
+    report_id = str(uuid4())
 
     return StreamingResponse(
-        _report_event_stream(graph, initial_state),
+        _report_event_stream(graph, initial_state, report_id),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
