@@ -11,7 +11,12 @@ V3 changes the synthesizer's role substantially:
         as market_insights, generates recommendations grounded in the
         risk violations, and writes a narrative that integrates both.
 
-    V5: + long_term_memory injected.
+    V5: + long_term_memory injected. The synthesizer personalizes its
+        recommendations and narrative using the user's remembered
+        preferences — WITHOUT letting a preference override the objective
+        risk analysis or fabricate facts. Reconciliation hierarchy:
+        market data + risk analysis are authoritative; memory personalizes
+        the framing.
     V6: + guardrail_feedback injected on retry attempts.
 
 Why pass sentiment through verbatim:
@@ -24,9 +29,10 @@ Why pass sentiment through verbatim:
 Model:
     Upgraded to gpt-4o for V3 (per SRS §2). The prompt has grown
     substantially — sentiment_findings + risk_analysis + portfolio +
-    market_data — and the output is more complex (recommendations
-    grounded in specific risk violations). gpt-4o-mini struggled with
-    consistent grounding once the prompt grew past ~1500 tokens.
+    market_data (+ long_term_memory in V5) — and the output is more
+    complex (recommendations grounded in specific risk violations).
+    gpt-4o-mini struggled with consistent grounding once the prompt grew
+    past ~1500 tokens.
 """
 
 from typing import Dict, List, Set
@@ -45,7 +51,10 @@ SYSTEM_PROMPT = (
     "FinalReport with per-asset insights, rebalancing recommendations, "
     "and a narrative summary. Stay grounded in the data provided — do "
     "not fabricate prices, news, or events not supported by the "
-    "information given."
+    "information given. When the user's known preferences from past "
+    "sessions are provided, use them to personalize your guidance and "
+    "framing, but never let a preference override the objective risk "
+    "analysis, and never invent preferences that are not listed."
 )
 
 HUMAN_PROMPT = (
@@ -61,6 +70,9 @@ HUMAN_PROMPT = (
     "{sentiment_findings_block}\n\n"
     "Risk analysis (deterministic, computed by upstream risk_agent):\n"
     "{risk_analysis_block}\n\n"
+    "What we remember about this user from past sessions (known "
+    "preferences and history — NOT new market facts to act on):\n"
+    "{long_term_memory_block}\n\n"
     "Now produce the FinalReport:\n"
     "  - portfolio_valuation: compute total_usd from quantities × prices "
     "for the priced assets, and the weighted change_24h_percent.\n"
@@ -72,9 +84,17 @@ HUMAN_PROMPT = (
     "If risk_agent flagged AAPL at 47% in a balanced profile, recommend "
     "reducing AAPL with a target_change_pct that brings it under the "
     "profile cap. If there are no violations and sentiment is uniformly "
-    "stable, an empty list is correct.\n"
+    "stable, an empty list is correct. Where the user's remembered "
+    "preferences bear on a recommendation (e.g. a stated reluctance to "
+    "reduce a specific holding), reflect that in the rationale — but do "
+    "NOT suppress a genuine risk violation because of a preference, and "
+    "do NOT invent preferences beyond those listed above.\n"
     "  - summary_narrative: 2-3 paragraphs in plain prose integrating "
-    "the sentiment picture, risk posture, and your recommendations.\n"
+    "the sentiment picture, risk posture, and your recommendations. "
+    "Where relevant, connect the analysis to the user's remembered "
+    "preferences so the report feels personal and continuous with past "
+    "sessions. If no preferences are on record, do not mention memory "
+    "at all.\n"
     "  - confidence: V3 grounds sentiment in real Tavily news, so "
     "confidence may sit in 0.6-0.85 range. Lower it toward 0.4-0.5 if: "
     "(a) market data was missing for some assets, (b) sentiment "
@@ -180,12 +200,39 @@ def _format_risk_analysis_block(risk: dict) -> str:
     )
 
 
+def _format_long_term_memory_block(memories: List[dict]) -> str:
+    """Render retrieved long-term memories as a labeled list for the prompt.
+
+    Each memory is a stored value dict from PostgresStore, shaped at
+    minimum as {"insight": str} and optionally carrying a "context"
+    string (added by memory_extractor in step 5). memory_loader returns
+    them most-relevant-first, so the order here already reflects semantic
+    relevance to the current portfolio.
+
+    Returns an explicit "nothing on record" sentinel when empty — the
+    prompt instructs the model to stay silent about memory in that case,
+    so first-run reports don't awkwardly reference an empty history.
+    """
+    if not memories:
+        return "(no past insights on record for this user yet)"
+    lines = []
+    for m in memories:
+        insight = m.get("insight")
+        if not insight:
+            continue
+        context = m.get("context")
+        lines.append(f"- {insight} ({context})" if context else f"- {insight}")
+    return (
+        "\n".join(lines) if lines else "(no past insights on record for this user yet)"
+    )
+
+
 def synthesizer(state: PortfolioState) -> dict:
     """Assemble the FinalReport from all merged upstream signals.
 
     Reads:
         portfolio, market_data, sentiment_findings (reducer-merged),
-        risk_analysis, risk_profile.
+        risk_analysis, risk_profile, long_term_memory (V5).
 
     Returns:
         {"final_report": FinalReport}
@@ -195,6 +242,7 @@ def synthesizer(state: PortfolioState) -> dict:
     sentiment_findings = state.get("sentiment_findings", [])
     risk_analysis = state["risk_analysis"]
     risk_profile = state["risk_profile"]
+    long_term_memory = state.get("long_term_memory", [])
 
     missing = set(portfolio.keys()) - set(market_data.keys())
 
@@ -209,6 +257,7 @@ def synthesizer(state: PortfolioState) -> dict:
                 sentiment_findings
             ),
             "risk_analysis_block": _format_risk_analysis_block(risk_analysis),
+            "long_term_memory_block": _format_long_term_memory_block(long_term_memory),
         }
     )
     return {"final_report": report}
