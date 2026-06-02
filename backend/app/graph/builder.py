@@ -33,6 +33,8 @@ from app.graph.nodes.data_ingestion import data_ingestion
 from app.graph.nodes.synthesizer import synthesizer
 from app.graph.nodes.sentiment_agent import sentiment_agent
 from app.graph.nodes.risk_agent import risk_agent
+from app.graph.nodes.memory_loader import memory_loader
+from app.graph.nodes.memory_extractor import memory_extractor
 
 
 def fan_out_to_agents(state: PortfolioState) -> List[Send]:
@@ -73,7 +75,7 @@ def _build_graph(store: BaseStore | None = None):
     Topology (V5):
         START → memory_loader → data_ingestion → [fan_out_to_agents]
                                                   ├─→ sentiment_agent (× N) ─┐
-                                                  └─→ risk_agent ────────────┴─→ synthesizer → END
+                                                  └─→ risk_agent ────────────┴─→ synthesizer → memory_extractor → END
 
     The list arg ["sentiment_agent", "risk_agent"] on add_conditional_edges
     is the enumeration of all possible Send targets — required by
@@ -83,9 +85,9 @@ def _build_graph(store: BaseStore | None = None):
 
     store: the PostgresStore handed to compile(). Passing it here is what
     makes LangGraph inject it into any node whose signature requests
-    `store: BaseStore` — memory_loader now, memory_extractor in step 5.
-    Defaulted to None so tests can compile a store-less graph (or inject a
-    fake). V6 adds a `checkpointer=` parameter the same way.
+    `store: BaseStore` — memory_loader and memory_extractor. Defaulted to
+    None so tests can compile a store-less graph (or inject a fake). V6
+    adds a `checkpointer=` parameter the same way.
     """
     builder = StateGraph(PortfolioState)
 
@@ -94,6 +96,7 @@ def _build_graph(store: BaseStore | None = None):
     builder.add_node("sentiment_agent", sentiment_agent)
     builder.add_node("risk_agent", risk_agent)
     builder.add_node("synthesizer", synthesizer)
+    builder.add_node("memory_extractor", memory_extractor)
 
     # memory_loader runs first: it reads portfolio + risk_profile (both in
     # the initial_state from the handler) and loads long_term_memory before
@@ -116,11 +119,13 @@ def _build_graph(store: BaseStore | None = None):
     builder.add_edge("sentiment_agent", "synthesizer")
     builder.add_edge("risk_agent", "synthesizer")
 
-    builder.add_edge("synthesizer", END)
+    # memory_extractor runs last: it distills durable insights from the
+    # finished report and persists them, so the next run's memory_loader
+    # surfaces them. This closes the learning loop.
+    builder.add_edge("synthesizer", "memory_extractor")
+    builder.add_edge("memory_extractor", END)
 
     # Compiling WITH the store is what enables store injection into nodes.
-    # compile(store=None) is valid too — a store-less graph where memory
-    # nodes would fail if invoked (fine for tests that don't exercise them).
     return builder.compile(store=store)
 
 

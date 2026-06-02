@@ -78,6 +78,7 @@ _STATUS_NODES = {
     "sentiment_agent",
     "risk_agent",
     "synthesizer",
+    "memory_extractor",
 }
 
 
