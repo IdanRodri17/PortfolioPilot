@@ -81,3 +81,10 @@ class PortfolioState(TypedDict, total=False):
 
     # ─── Populated by synthesizer ───
     final_report: FinalReport
+
+    # ─── Populated by memory_extractor (V5) ───
+    new_memories: List[dict]
+    # Insights saved to the PostgresStore this run, e.g. [{"insight": "..."}].
+    # V5 auto-saves here; V6 will gate persistence on human approval. Surfaced
+    # for transparency (the SSE feed / a future /memory view). Single writer,
+    # no reducer.
