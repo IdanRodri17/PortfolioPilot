@@ -98,3 +98,27 @@ export type ReportStreamEvent =
   | { type: "status"; data: StatusEventData }
   | { type: "report_complete"; data: FinalReport }
   | { type: "error"; data: ErrorEventData };
+
+// ─── Memory + report history (mirrors api/memories.py, api/reports.py) ───
+
+export interface Memory {
+  key: string;
+  insight: string;
+  created_at: string | null;
+}
+
+export interface ReportSummary {
+  report_id: string;
+  generated_at: string;
+  confidence_flag: string | null; // "high" | "low" | null
+  total_usd: number | null;
+  change_24h_percent: number | null;
+}
+
+export interface ReportDetail {
+  report_id: string;
+  user_id: string;
+  generated_at: string;
+  confidence_flag: string | null;
+  report: FinalReport;
+}

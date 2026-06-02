@@ -13,7 +13,13 @@
  * provides. If the contract ever drifted, that's where one would go.
  */
 
-import type { PortfolioRequest, PortfolioResponse } from "@/lib/types";
+import type {
+  PortfolioRequest,
+  PortfolioResponse,
+  Memory,
+  ReportSummary,
+  ReportDetail,
+} from "@/lib/types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL;
 
@@ -42,5 +48,31 @@ export async function upsertPortfolio(
       `upsertPortfolio failed: HTTP ${res.status} ${res.statusText}`,
     );
   }
+  return res.json();
+}
+
+export async function getMemories(userId: string): Promise<Memory[]> {
+  const res = await fetch(`${API_BASE}/api/memories/${userId}`);
+  if (!res.ok) throw new Error(`getMemories failed: HTTP ${res.status}`);
+  return res.json();
+}
+
+export async function deleteMemories(
+  userId: string,
+): Promise<{ user_id: string; deleted: number }> {
+  const res = await fetch(`${API_BASE}/api/memories/${userId}`, { method: "DELETE" });
+  if (!res.ok) throw new Error(`deleteMemories failed: HTTP ${res.status}`);
+  return res.json();
+}
+
+export async function getReportsHistory(userId: string): Promise<ReportSummary[]> {
+  const res = await fetch(`${API_BASE}/api/reports/history/${userId}`);
+  if (!res.ok) throw new Error(`getReportsHistory failed: HTTP ${res.status}`);
+  return res.json();
+}
+
+export async function getReport(reportId: string): Promise<ReportDetail> {
+  const res = await fetch(`${API_BASE}/api/reports/${reportId}`);
+  if (!res.ok) throw new Error(`getReport failed: HTTP ${res.status}`);
   return res.json();
 }

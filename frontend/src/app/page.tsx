@@ -30,12 +30,17 @@ export default function DashboardPage() {
           <div>
             <h1 className="text-2xl font-semibold tracking-tight">PortfolioPilot</h1>
             <p className="mt-1 text-sm text-slate-500">AI portfolio analysis</p>
-            <Link
-              href="/portfolio"
-              className="mt-1 inline-block text-sm text-emerald-400 transition-colors hover:text-emerald-300"
-            >
-              Edit portfolio →
-            </Link>
+            <nav className="mt-2 flex gap-4 text-sm">
+              <Link href="/portfolio" className="text-emerald-400 transition-colors hover:text-emerald-300">
+                Edit portfolio
+              </Link>
+              <Link href="/history" className="text-slate-400 transition-colors hover:text-slate-200">
+                History
+              </Link>
+              <Link href="/memory" className="text-slate-400 transition-colors hover:text-slate-200">
+                Memory
+              </Link>
+            </nav>
           </div>
           <button
             onClick={() => start(DEMO_USER)}
