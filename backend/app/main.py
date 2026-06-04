@@ -26,6 +26,7 @@ from app.db.base import Base, engine
 import app.db.models  # noqa: F401
 
 from app.graph.persistence.store import open_store, close_store
+from app.graph.persistence.checkpointer import open_checkpointer, close_checkpointer
 from app.api.generate import router as generate_router
 from app.api.portfolio import router as portfolio_router
 from app.api.reports import router as reports_router
@@ -65,8 +66,10 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # ─── Startup ───
     Base.metadata.create_all(bind=engine)
     open_store()
+    await open_checkpointer()
     yield
     # ─── Shutdown ───
+    await close_checkpointer()
     close_store()
 
 
@@ -83,8 +86,8 @@ def create_app() -> FastAPI:
 
     app = FastAPI(
         title="PortfolioPilot",
-        version="0.5.0",
-        description="AI wealth manager — V5 (semantic long-term memory via PostgresStore)",
+        version="0.6.0",
+        description="AI wealth manager —  V6 (guardrail loop + HITL memory)",
         lifespan=lifespan,
     )
 
