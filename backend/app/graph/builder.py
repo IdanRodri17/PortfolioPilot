@@ -35,6 +35,9 @@ from app.graph.nodes.risk_agent import risk_agent
 from app.graph.nodes.memory_loader import memory_loader
 from app.graph.nodes.memory_extractor import memory_extractor
 from app.graph.nodes.guardrail import guardrail, route_after_guardrail
+from app.graph.persistence.checkpointer import checkpointer as memory_checkpointer
+from app.graph.nodes.human_review import human_review
+from app.graph.nodes.memory_saver import memory_saver
 
 
 def fan_out_to_agents(state: PortfolioState) -> List[Send]:
@@ -69,7 +72,7 @@ def fan_out_to_agents(state: PortfolioState) -> List[Send]:
     return sends
 
 
-def _build_graph(store: BaseStore | None = None):
+def _build_graph(store: BaseStore | None = None, checkpointer=None):
     """Construct and compile the PortfolioPilot graph.
 
     Topology (V5):
@@ -98,6 +101,8 @@ def _build_graph(store: BaseStore | None = None):
     builder.add_node("synthesizer", synthesizer)
     builder.add_node("memory_extractor", memory_extractor)
     builder.add_node("guardrail", guardrail)
+    builder.add_node("human_review", human_review)
+    builder.add_node("memory_saver", memory_saver)
 
     # memory_loader runs first: it reads portfolio + risk_profile (both in
     # the initial_state from the handler) and loads long_term_memory before
@@ -132,12 +137,14 @@ def _build_graph(store: BaseStore | None = None):
             "memory_extractor",
         ],  # all possible targets (cycle back or proceed)
     )
-    builder.add_edge("memory_extractor", END)
+    builder.add_edge("memory_extractor", "human_review")
+    builder.add_edge("human_review", "memory_saver")
+    builder.add_edge("memory_saver", END)
 
     # Compiling WITH the store is what enables store injection into nodes.
-    return builder.compile(store=store)
+    return builder.compile(store=store, checkpointer=checkpointer)
 
 
 # Module-level singleton, compiled with the PostgresStore singleton.
 # Importers get the same compiled graph.
-graph = _build_graph(store=memory_store)
+graph = _build_graph(store=memory_store, checkpointer=memory_checkpointer)

@@ -26,8 +26,8 @@ Graceful degradation (pattern #22):
 
 import logging
 from typing import List
-from uuid import uuid4
 
+from langgraph.store.base import BaseStore
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
 from langgraph.store.base import BaseStore
@@ -84,6 +84,15 @@ HUMAN_PROMPT = (
     "  - Do NOT restate the report or repeat anything already remembered.\n"
     "  - If nothing new and durable is worth saving, return an empty list. "
     "An empty list is often the correct answer."
+    "  - Each is one concise sentence written about the user.\n"
+    "  - Do NOT restate the report or repeat anything already remembered.\n"
+    "  - Do NOT restate the user's stated risk profile or current holdings "
+    "as an insight — those are given inputs, not learned observations.\n"
+    "  - Do NOT assume the user accepted or acted on any recommendation; the "
+    "report's recommendations are the system's suggestions, not the user's "
+    "decisions.\n"
+    "  - If nothing new and durable is worth saving, return an empty list. "
+    "An empty list is often the correct answer."
 )
 
 _prompt = ChatPromptTemplate.from_messages(
@@ -123,20 +132,22 @@ def _format_existing_memory_block(memories: List[dict]) -> str:
 # ─── Node ─────────────────────────────────────────────────────────────
 
 
-def memory_extractor(state: PortfolioState, *, store: BaseStore) -> dict:
-    """Propose durable insights from the report and persist them (V5).
+def memory_extractor(state: PortfolioState) -> dict:
+    """Propose durable insights from the finished report (V6: propose-only).
+
+    V5 also persisted here; V6 narrows this node to proposing only. The
+    human_review interrupt then lets the user approve, and memory_saver
+    persists the approved subset. This node no longer touches the store.
 
     Reads:
         user_id, portfolio, risk_profile, final_report,
         long_term_memory (for dedup).
 
     Returns:
-        {"new_memories": [{"insight": str}, ...]} — what was saved (possibly
-        empty). Each is also persisted to PostgresStore under
-        ("memories", user_id).
+        {"proposed_memories": [{"insight": str}, ...]} — 0-3 candidates,
+        nothing persisted yet.
     """
     user_id = state["user_id"]
-    namespace = ("memories", user_id)
     report: FinalReport = state["final_report"]
     portfolio = state["portfolio"]
     risk_profile = state["risk_profile"]
@@ -152,19 +163,17 @@ def memory_extractor(state: PortfolioState, *, store: BaseStore) -> dict:
                 "existing_memory_block": _format_existing_memory_block(existing),
             }
         )
-        saved: List[dict] = []
-        for insight in proposed.insights[:_MAX_MEMORIES]:
-            text = insight.strip()
-            if not text:
-                continue
-            value = {"insight": text}
-            store.put(namespace, str(uuid4()), value)
-            saved.append(value)
     except Exception as exc:  # noqa: BLE001 — report is done; never sink it
-        logger.warning(
-            "memory_extractor: extraction/save failed for %s — %s", user_id, exc
-        )
-        return {"new_memories": []}
+        logger.warning("memory_extractor: proposal failed for %s — %s", user_id, exc)
+        return {"proposed_memories": []}
 
-    logger.info("memory_extractor: saved %d new memories for %s", len(saved), user_id)
-    return {"new_memories": saved}
+    candidates: List[dict] = []
+    for insight in proposed.insights[:_MAX_MEMORIES]:
+        text = insight.strip()
+        if text:
+            candidates.append({"insight": text})
+
+    logger.info(
+        "memory_extractor: proposed %d insights for %s", len(candidates), user_id
+    )
+    return {"proposed_memories": candidates}

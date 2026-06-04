@@ -87,6 +87,13 @@ class PortfolioState(TypedDict, total=False):
     guardrail_feedback: str | None  # previous attempt's failure reasons; None on pass
     retry_count: int  # guardrail evaluations so far; bail at 3 (2 regenerations)
 
+    # ─── HITL memory review (V6) ───
+    proposed_memories: List[dict]
+    # Candidate insights from memory_extractor, pre-approval. Single writer.
+
+    approved_memories: List[dict]
+    # The subset the user approved in human_review (after resume). Single writer.
+
     # ─── Populated by memory_extractor (V5) ───
     new_memories: List[dict]
     # Insights saved to the PostgresStore this run, e.g. [{"insight": "..."}].
