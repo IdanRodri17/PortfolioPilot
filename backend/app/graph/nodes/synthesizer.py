@@ -58,6 +58,7 @@ SYSTEM_PROMPT = (
 )
 
 HUMAN_PROMPT = (
+    "{guardrail_feedback_block}"
     "User portfolio (risk profile: {profile_name}):\n"
     "{portfolio_table}\n\n"
     "Risk profile guidance:\n"
@@ -227,6 +228,19 @@ def _format_long_term_memory_block(memories: List[dict]) -> str:
     )
 
 
+def _format_guardrail_feedback_block(feedback: str | None) -> str:
+    """Reflexion preamble injected only on a guardrail retry."""
+    if not feedback:
+        return ""
+    return (
+        "PREVIOUS ATTEMPT FAILED VALIDATION. Reasons:\n"
+        f"{feedback}\n\n"
+        "Regenerate the report addressing these specific issues. Stay strictly "
+        "grounded in the data provided below; do not invent prices, news, or "
+        "preferences.\n\n"
+    )
+
+
 def synthesizer(state: PortfolioState) -> dict:
     """Assemble the FinalReport from all merged upstream signals.
 
@@ -258,6 +272,9 @@ def synthesizer(state: PortfolioState) -> dict:
             ),
             "risk_analysis_block": _format_risk_analysis_block(risk_analysis),
             "long_term_memory_block": _format_long_term_memory_block(long_term_memory),
+            "guardrail_feedback_block": _format_guardrail_feedback_block(
+                state.get("guardrail_feedback")
+            ),
         }
     )
     return {"final_report": report}

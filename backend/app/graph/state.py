@@ -82,6 +82,11 @@ class PortfolioState(TypedDict, total=False):
     # ─── Populated by synthesizer ───
     final_report: FinalReport
 
+    # ─── Guardrail loop (V6) ───
+    guardrail_passed: bool
+    guardrail_feedback: str | None  # previous attempt's failure reasons; None on pass
+    retry_count: int  # guardrail evaluations so far; bail at 3 (2 regenerations)
+
     # ─── Populated by memory_extractor (V5) ───
     new_memories: List[dict]
     # Insights saved to the PostgresStore this run, e.g. [{"insight": "..."}].
