@@ -54,6 +54,9 @@ import json
 import logging
 from uuid import uuid4
 
+from langgraph.types import Command
+from pydantic import BaseModel, Field
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
@@ -82,6 +85,7 @@ _STATUS_NODES = {
     "synthesizer",
     "guardrail",
     "memory_extractor",
+    "memory_saver",
 }
 
 
@@ -101,27 +105,18 @@ def _format_sse(event_type: str, data: dict) -> str:
     return f"event: {event_type}\ndata: {json.dumps(data)}\n\n"
 
 
-def _persist_report(report_id: str, user_id: str, payload: dict) -> None:
-    """Archive a finished report to the reports table (V5).
-
-    Opens its OWN short-lived session — NOT the request's get_db session.
-    The generator stays free of the request session (which may close while
-    the stream is still open); this session is opened, used for one insert,
-    and closed within a single await-free window at the moment of the write.
-
-    confidence_flag is a coarse label derived from the report's confidence.
-    The V6 guardrail may set this instead once it exists.
-    """
+def _persist_report(
+    report_id: str, user_id: str, payload: dict, guardrail_passed=None
+) -> None:
     confidence = payload.get("confidence", 0.0)
     flag = "high" if confidence >= 0.6 else "low"
+    if guardrail_passed is False:
+        flag = "low"
     db = SessionLocal()
     try:
         db.add(
             Report(
-                id=report_id,
-                user_id=user_id,
-                raw_result=payload,
-                confidence_flag=flag,
+                id=report_id, user_id=user_id, raw_result=payload, confidence_flag=flag
             )
         )
         db.commit()
@@ -130,20 +125,27 @@ def _persist_report(report_id: str, user_id: str, payload: dict) -> None:
 
 
 async def _report_event_stream(graph, initial_state: dict, report_id: str):
-    """Async generator mapping the astream_events firehose to SSE events.
+    """Map the astream_events firehose to SSE events.
 
-    Yields status events per node entry/exit, then exactly one terminal
-    event: report_complete (carrying the FinalReport plus report_id) or
-    error. The finished report is archived to the reports table (best
-    effort) just before report_complete is emitted.
+    Yields status events per node, then report_complete (FinalReport +
+    report_id). If the graph paused at human_review's interrupt (V6), also
+    yields human_input_required so the client can open the memory-approval
+    modal and resume via POST /api/resume-graph.
+
+    config carries the thread_id: the graph is compiled WITH a checkpointer
+    now, so every run must pass {"configurable": {"thread_id": ...}}. We reuse
+    report_id as the thread_id, so the paused run and its archived report
+    share one identifier.
     """
+    config = {"configurable": {"thread_id": report_id}}
     final_report = None
-    # run_id -> symbol, so a sentiment_agent's end event can carry the same
-    # symbol its start event did.
+    guardrail_passed = None
     run_symbols: dict[str, str] = {}
 
     try:
-        async for event in graph.astream_events(initial_state, version="v2"):
+        async for event in graph.astream_events(
+            initial_state, config=config, version="v2"
+        ):
             kind = event["event"]
             name = event.get("name", "")
             run_id = event.get("run_id")
@@ -158,22 +160,22 @@ async def _report_event_stream(graph, initial_state: dict, report_id: str):
                         if run_id is not None:
                             run_symbols[run_id] = symbol
                 yield _format_sse(
-                    "status",
-                    {"node": name, "phase": "start", "metadata": metadata},
+                    "status", {"node": name, "phase": "start", "metadata": metadata}
                 )
 
             elif kind == "on_chain_end":
-                # Capture the report from whichever end event carries it.
                 output = event.get("data", {}).get("output")
-                if isinstance(output, dict) and output.get("final_report") is not None:
-                    final_report = output["final_report"]
+                if isinstance(output, dict):
+                    if output.get("final_report") is not None:
+                        final_report = output["final_report"]
+                    if "guardrail_passed" in output:
+                        guardrail_passed = output["guardrail_passed"]
                 if name in _STATUS_NODES:
                     metadata = {}
                     if name == "sentiment_agent" and run_id in run_symbols:
                         metadata["symbol"] = run_symbols[run_id]
                     yield _format_sse(
-                        "status",
-                        {"node": name, "phase": "end", "metadata": metadata},
+                        "status", {"node": name, "phase": "end", "metadata": metadata}
                     )
 
     except Exception as exc:  # noqa: BLE001 — the stream must surface, not swallow
@@ -193,17 +195,14 @@ async def _report_event_stream(graph, initial_state: dict, report_id: str):
         )
         return
 
-    # final_report is a FinalReport instance off the State; mode="json"
-    # keeps the payload JSON-clean regardless of field types.
     payload = (
         final_report.model_dump(mode="json")
         if hasattr(final_report, "model_dump")
         else final_report
     )
 
-    # Archive at the boundary (best-effort) before announcing completion.
     try:
-        _persist_report(report_id, initial_state["user_id"], payload)
+        _persist_report(report_id, initial_state["user_id"], payload, guardrail_passed)
     except Exception:  # noqa: BLE001 — never deny a result over a failed archive
         logger.exception(
             "Failed to persist report %s for %s",
@@ -211,10 +210,43 @@ async def _report_event_stream(graph, initial_state: dict, report_id: str):
             initial_state.get("user_id"),
         )
 
-    # report_id rides alongside the report so the client can deep-link the
-    # just-generated report to /history. It is an extra field on the
-    # payload — the dashboard ignores it; the history view reads it.
+    # Deliver the report whether or not memory review is pending — the report
+    # is never held hostage to approval (design decision).
     yield _format_sse("report_complete", {**payload, "report_id": report_id})
+
+    # V6: did the run pause at human_review's interrupt? Surface the proposals.
+    try:
+        snapshot = await graph.aget_state(config)
+    except (
+        Exception
+    ) as exc:  # noqa: BLE001 — detection failure shouldn't error the report
+        logger.warning(
+            "interrupt detection: aget_state failed for %s — %s", report_id, exc
+        )
+        return
+
+    paused = bool(snapshot.next) and "human_review" in snapshot.next
+    if not paused:
+        return
+
+    # Prefer the interrupt payload; fall back to state for version robustness.
+    proposed = []
+    pend = list(getattr(snapshot, "interrupts", None) or [])
+    if not pend:
+        pend = [i for t in snapshot.tasks for i in getattr(t, "interrupts", ())]
+    if pend and isinstance(getattr(pend[0], "value", None), dict):
+        proposed = pend[0].value.get("proposed_memories", [])
+    if not proposed:
+        proposed = (snapshot.values or {}).get("proposed_memories", [])
+
+    yield _format_sse(
+        "human_input_required",
+        {
+            "thread_id": report_id,
+            "type": "memory_review",
+            "payload": {"proposed_memories": proposed},
+        },
+    )
 
 
 @router.get(
@@ -261,4 +293,67 @@ async def generate_report(
             "Cache-Control": "no-cache",
             "X-Accel-Buffering": "no",  # disable proxy buffering (no-op locally)
         },
+    )
+
+
+class ResumeRequest(BaseModel):
+    """Body for POST /api/resume-graph — the user's memory-approval decisions."""
+
+    approved_indices: list[int] = Field(default_factory=list)
+
+
+async def _resume_event_stream(graph, thread_id: str, approved_indices: list[int]):
+    """Resume a paused graph from its checkpoint and stream the rest (V6).
+
+    Stream 1 ended at human_input_required. The client now POSTs the approved
+    indices here; we re-enter with Command(resume=...) and the SAME thread_id.
+    LangGraph restores the snapshot, human_review's interrupt() returns our
+    value, and execution flows through memory_saver to END. We stream
+    memory_saver's status, then a terminal memory_saved event with the count.
+    """
+    config = {"configurable": {"thread_id": thread_id}}
+    saved = None
+    try:
+        async for event in graph.astream_events(
+            Command(resume={"approved_indices": approved_indices}),
+            config=config,
+            version="v2",
+        ):
+            kind = event["event"]
+            name = event.get("name", "")
+            if kind == "on_chain_end":
+                output = event.get("data", {}).get("output")
+                if isinstance(output, dict) and "new_memories" in output:
+                    saved = output["new_memories"]
+            if name in _STATUS_NODES and kind in ("on_chain_start", "on_chain_end"):
+                phase = "start" if kind == "on_chain_start" else "end"
+                yield _format_sse(
+                    "status", {"node": name, "phase": phase, "metadata": {}}
+                )
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("resume-graph stream failed for thread_id=%s", thread_id)
+        yield _format_sse("error", {"code": "RESUME_ERROR", "message": str(exc)})
+        return
+
+    yield _format_sse("memory_saved", {"count": len(saved) if saved is not None else 0})
+
+
+@router.post(
+    "/api/resume-graph", summary="Resume an interrupted graph with user decisions"
+)
+async def resume_graph(
+    thread_id: str,
+    payload: ResumeRequest,
+    graph=Depends(get_graph),
+) -> StreamingResponse:
+    """Resume the memory-review interrupt for thread_id, streaming the rest.
+
+    thread_id is the report_id from stream 1's human_input_required event.
+    POST (not GET) because the approvals ride in the request body, so the
+    client consumes this with fetch()+ReadableStream rather than EventSource.
+    """
+    return StreamingResponse(
+        _resume_event_stream(graph, thread_id, payload.approved_indices),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
