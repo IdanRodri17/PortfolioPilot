@@ -28,13 +28,13 @@ from langgraph.store.base import BaseStore
 
 from app.graph.state import PortfolioState
 from app.graph.persistence.store import store as memory_store
-from app.graph.nodes.memory_loader import memory_loader
 from app.graph.nodes.data_ingestion import data_ingestion
 from app.graph.nodes.synthesizer import synthesizer
 from app.graph.nodes.sentiment_agent import sentiment_agent
 from app.graph.nodes.risk_agent import risk_agent
 from app.graph.nodes.memory_loader import memory_loader
 from app.graph.nodes.memory_extractor import memory_extractor
+from app.graph.nodes.guardrail import guardrail, route_after_guardrail
 
 
 def fan_out_to_agents(state: PortfolioState) -> List[Send]:
@@ -97,6 +97,7 @@ def _build_graph(store: BaseStore | None = None):
     builder.add_node("risk_agent", risk_agent)
     builder.add_node("synthesizer", synthesizer)
     builder.add_node("memory_extractor", memory_extractor)
+    builder.add_node("guardrail", guardrail)
 
     # memory_loader runs first: it reads portfolio + risk_profile (both in
     # the initial_state from the handler) and loads long_term_memory before
@@ -122,7 +123,15 @@ def _build_graph(store: BaseStore | None = None):
     # memory_extractor runs last: it distills durable insights from the
     # finished report and persists them, so the next run's memory_loader
     # surfaces them. This closes the learning loop.
-    builder.add_edge("synthesizer", "memory_extractor")
+    builder.add_edge("synthesizer", "guardrail")
+    builder.add_conditional_edges(
+        "guardrail",
+        route_after_guardrail,
+        [
+            "synthesizer",
+            "memory_extractor",
+        ],  # all possible targets (cycle back or proceed)
+    )
     builder.add_edge("memory_extractor", END)
 
     # Compiling WITH the store is what enables store injection into nodes.
