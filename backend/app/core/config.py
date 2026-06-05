@@ -35,7 +35,7 @@ class Settings(BaseSettings):
         V1: OpenAI credentials only.
         V2: + DATABASE_URL (Postgres).
         V3: + TAVILY_API_KEY, + OPENAI_MODEL_SYNTHESIZER upgraded to gpt-4o.
-        V7: + TELEGRAM_BOT_TOKEN, RESEND_API_KEY, FROM_EMAIL (delivery channels).
+        V7: + TELEGRAM_BOT_TOKEN, RESEND_API_KEY, FROM_EMAIL, PUBLIC_APP_BASE_URL, DUE_CHECK_INTERVAL_MINUTES (delivery + scheduler).
     """
 
     model_config = SettingsConfigDict(
@@ -56,6 +56,7 @@ class Settings(BaseSettings):
     resend_api_key: str | None = None
     from_email: str = "PortfolioPilot <onboarding@resend.dev>"
     public_app_base_url: str = "http://localhost:3000"
+    due_check_interval_minutes: int = 10
 
 
 @lru_cache

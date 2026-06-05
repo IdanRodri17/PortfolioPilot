@@ -13,3 +13,4 @@ tavily-python
 langgraph-checkpoint-postgres
 tzdata
 httpx
+apscheduler<4

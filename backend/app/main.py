@@ -11,6 +11,7 @@ call at construction time.
 
 from contextlib import asynccontextmanager
 from collections.abc import AsyncIterator
+from datetime import datetime, timezone
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -18,12 +19,18 @@ from fastapi.middleware.cors import CORSMiddleware
 # Importing config first ensures load_dotenv() runs and Settings is
 # validated before anything else (e.g., the graph) tries to touch env vars.
 from app.core.config import get_settings
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+
+from app.delivery.dispatcher import dispatch_due
 from app.db.base import Base, engine
 
 # Side-effect import: registers User, Portfolio (and V5's Report once it
 # lands) on Base.metadata so create_all() actually creates them. Without
 # this line, Base.metadata is empty at startup and the tables never get made.
-import app.db.models  # noqa: F401
+import app.db.models
+import logging  # noqa: F401
+
+logger = logging.getLogger(__name__)
 
 from app.graph.persistence.store import open_store, close_store
 from app.graph.persistence.checkpointer import open_checkpointer, close_checkpointer
@@ -48,30 +55,41 @@ _ALLOWED_ORIGINS = [
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-    """Startup/shutdown hooks for process-wide persistence.
-
-    Startup provisions both persistence layers in one place:
-        - Base.metadata.create_all: the Idan-owned tables (users, portfolios,
-          and V5's reports). Idempotent CREATE TABLE IF NOT EXISTS.
-        - open_store: opens the psycopg pool and runs PostgresStore.setup()
-          (CREATE EXTENSION vector + the store/store_vectors tables).
-          Idempotent too — warm restarts and --reload are a no-op.
-
-    Shutdown closes the store's connection pool so connections are released
-    cleanly. The SQLAlchemy engine pool is process-lifetime and self-managing,
-    so it needs no explicit teardown here.
-
-    Why this moved out of create_app() (V2-V4 called create_all imperatively
-    at construction): the store pool needs a paired open/close, and a
-    module-level call can only do the open half. lifespan owns both ends, so
-    all provisioning lives together. V6's PostgresSaver checkpointer setup
-    will be added to the startup block below.
-    """
     Base.metadata.create_all(bind=engine)
     open_store()
     checkpointer = await open_checkpointer()
     set_checkpointer(checkpointer)
+
+    # In-process delivery scheduler. The tick is intentionally dumb: every N
+    # minutes it calls dispatch_due(), which runs the real per-user due check
+    # and the last_sent_at dedupe — so an over-frequent tick can never
+    # double-send, and swapping this for an external cron that POSTs
+    # /api/run-due-deliveries needs zero logic changes.
+    #
+    # Started here (not at import) because AsyncIOScheduler binds to the running
+    # event loop — the same reason the async checkpointer is opened in the
+    # lifespan rather than at module load.
+    scheduler = AsyncIOScheduler()
+    interval = get_settings().due_check_interval_minutes
+    scheduler.add_job(
+        dispatch_due,
+        "interval",
+        minutes=interval,
+        id="due_deliveries",
+        max_instances=1,
+        coalesce=True,
+        next_run_time=datetime.now(
+            timezone.utc
+        ),  # fire once on boot, then every interval
+    )
+    scheduler.start()
+    logger.warning(
+        "Delivery scheduler started: dispatch_due now, then every %d min", interval
+    )
+
     yield
+
+    scheduler.shutdown(wait=False)
     await close_checkpointer()
     close_store()
 
