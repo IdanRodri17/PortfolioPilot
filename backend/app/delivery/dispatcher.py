@@ -31,6 +31,8 @@ import asyncio
 import logging
 from datetime import datetime, timezone
 from uuid import uuid4
+from zoneinfo import ZoneInfo
+
 
 from langgraph.types import Command
 
@@ -38,7 +40,7 @@ import app.graph.builder as graph_builder
 from app.api.generate import _persist_report
 from app.core.config import get_settings
 from app.db.base import SessionLocal
-from app.db.models import User
+from app.db.models import User, DeliveryPreference
 from app.delivery.renderers import render_email_html, render_telegram_brief
 from app.tools.email_sender import send_email
 from app.tools.telegram_sender import send_telegram_message
@@ -170,3 +172,79 @@ async def deliver_for_user(user_id: str) -> dict:
             db.close()
 
     return {"report_id": report_id, "channels": channels}
+
+
+def _is_due(pref: DeliveryPreference, now: datetime) -> bool:
+    """Is a send due for this preference at `now` (an aware UTC datetime)?
+
+    The rule: the current period's scheduled LOCAL time has arrived, and we
+    haven't already sent for this period. Computed in the user's IANA zone, so
+    '08:00 local' is correct across DST — we resolve the zone per-date and never
+    freeze a UTC offset. A bad zone is skipped rather than allowed to crash the
+    whole batch.
+    """
+    if not pref.enabled:
+        return False
+    try:
+        tz = ZoneInfo(pref.timezone)
+    except Exception:  # noqa: BLE001 — a bad zone disables this user, not the batch
+        logger.warning(
+            "_is_due: bad timezone %r; skipping %s", pref.timezone, pref.user_id
+        )
+        return False
+
+    now_local = now.astimezone(tz)
+    st = pref.send_time_local
+    scheduled = now_local.replace(
+        hour=st.hour, minute=st.minute, second=0, microsecond=0
+    )
+    if now_local < scheduled:
+        return False  # today's send time hasn't arrived yet
+
+    last = pref.last_sent_at  # aware UTC, or None
+
+    if pref.cadence == "weekly":
+        if pref.weekday is None or now_local.weekday() != pref.weekday:
+            return False
+        return last is None or last < scheduled
+
+    if pref.cadence == "every_n_days":
+        n = pref.interval_days or 1
+        if last is None:
+            return True
+        return (now_local.date() - last.astimezone(tz).date()).days >= n
+
+    # daily (default)
+    return last is None or last < scheduled
+
+
+async def dispatch_due() -> dict:
+    """Deliver to every enabled preference that is due now.
+
+    Best-effort across users: one user's failure is logged and the batch
+    continues. Idempotent within a period because deliver_for_user stamps
+    last_sent_at, which _is_due reads — so a ~10-minute trigger never double-sends.
+    """
+    now = datetime.now(timezone.utc)
+    db = SessionLocal()
+    try:
+        prefs = (
+            db.query(DeliveryPreference)
+            .filter(DeliveryPreference.enabled.is_(True))
+            .all()
+        )
+        due_ids = [p.user_id for p in prefs if _is_due(p, now)]
+        total = len(prefs)
+    finally:
+        db.close()
+
+    logger.info("dispatch_due: %d enabled, %d due", total, len(due_ids))
+    results: dict = {}
+    for uid in due_ids:
+        try:
+            results[uid] = await deliver_for_user(uid)
+        except Exception as exc:  # noqa: BLE001 — one user can't sink the batch
+            logger.exception("dispatch_due: delivery failed for %s", uid)
+            results[uid] = {"error": str(exc)}
+
+    return {"checked_at": now.isoformat(), "due": len(due_ids), "results": results}

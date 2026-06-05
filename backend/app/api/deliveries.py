@@ -19,7 +19,7 @@ import logging
 
 from fastapi import APIRouter, HTTPException, status
 
-from app.delivery.dispatcher import deliver_for_user, DeliveryError
+from app.delivery.dispatcher import deliver_for_user, DeliveryError, dispatch_due
 
 logger = logging.getLogger(__name__)
 
@@ -43,3 +43,14 @@ async def run_now(user_id: str) -> dict:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)
         )
+
+
+@router.post(
+    "/api/run-due-deliveries",
+    summary="Deliver to every user whose schedule is due now",
+)
+async def run_due_deliveries() -> dict:
+    """The scheduled trigger — hit by the in-process APScheduler tick (V7c-2b)
+    or an external cron every ~10 min. Idempotent within a period via
+    last_sent_at, so over-frequent calls are harmless."""
+    return await dispatch_due()
