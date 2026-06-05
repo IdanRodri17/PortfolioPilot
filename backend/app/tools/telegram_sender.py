@@ -92,3 +92,43 @@ def send_telegram_message(chat_id: str, text: str) -> dict:
         raise TelegramSendError(f"Telegram API error (HTTP {resp.status_code}): {desc}")
 
     return body["result"]
+
+
+def get_updates(limit: int = 100) -> list[dict]:
+    """Fetch pending updates for the bot — the RECEIVE direction (pattern #4).
+
+    Used by the connect flow to discover the chat_id of whoever just messaged
+    the bot: a one-shot pull, no webhook and no long-poll loop. Returns the raw
+    `result` list (each item an update dict); picking which chat to bind is the
+    caller's job, keeping this a thin wrapper.
+
+    Notes on getUpdates semantics:
+      - Without an `offset`, this returns all unconfirmed updates and does NOT
+        consume them — calling it repeatedly is safe and idempotent.
+      - getUpdates and a webhook are mutually exclusive; if a webhook is ever
+        set on this bot, getUpdates returns 409. We never set one.
+      - Telegram drops updates older than ~24h, so connect right after messaging
+        the bot.
+    """
+    token = get_settings().telegram_bot_token
+    if not token:
+        raise TelegramSendError("TELEGRAM_BOT_TOKEN is not configured.")
+
+    url = f"{_API_BASE}/bot{token}/getUpdates"
+    try:
+        resp = httpx.get(url, params={"limit": limit}, timeout=_TIMEOUT)
+    except httpx.HTTPError as exc:
+        raise TelegramSendError(f"Telegram getUpdates failed: {exc}") from exc
+
+    try:
+        body = resp.json()
+    except ValueError as exc:
+        raise TelegramSendError(
+            f"Telegram returned non-JSON (HTTP {resp.status_code})."
+        ) from exc
+
+    if not body.get("ok"):
+        desc = body.get("description", "unknown error")
+        raise TelegramSendError(f"Telegram API error (HTTP {resp.status_code}): {desc}")
+
+    return body.get("result", [])

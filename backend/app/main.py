@@ -33,6 +33,7 @@ from app.api.reports import router as reports_router
 from app.api.memories import router as memories_router
 from app.graph.builder import set_checkpointer
 from app.api.delivery import router as delivery_router
+from app.api.telegram import router as telegram_router
 
 # Browser origins permitted to call the API. The Next.js dev server runs on
 # :3000 — a different origin from the backend's :8000 — so its EventSource
@@ -110,6 +111,7 @@ def create_app() -> FastAPI:
     app.include_router(reports_router)
     app.include_router(memories_router)
     app.include_router(delivery_router)
+    app.include_router(telegram_router)
 
     return app
 
