@@ -42,6 +42,14 @@ function labelFor(node: string): string {
       return "Risk analysis";
     case "synthesizer":
       return "Synthesizing report";
+    case "memory_loader":
+      return "Recalling memory";
+    case "guardrail":
+      return "Validating report";
+    case "memory_extractor":
+      return "Extracting insights";
+    case "memory_saver":
+      return "Saving approved insights";
     default:
       return node;
   }

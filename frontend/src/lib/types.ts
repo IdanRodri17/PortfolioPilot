@@ -97,6 +97,8 @@ export interface ErrorEventData {
 export type ReportStreamEvent =
   | { type: "status"; data: StatusEventData }
   | { type: "report_complete"; data: FinalReport }
+  | { type: "human_input_required"; data: HumanInputRequiredData }
+  | { type: "memory_saved"; data: MemorySavedData }
   | { type: "error"; data: ErrorEventData };
 
 // ─── Memory + report history (mirrors api/memories.py, api/reports.py) ───
@@ -121,4 +123,19 @@ export interface ReportDetail {
   generated_at: string;
   confidence_flag: string | null;
   report: FinalReport;
+}
+
+export interface ProposedMemory {
+  insight: string;
+  context?: string;
+}
+
+export interface HumanInputRequiredData {
+  thread_id: string;
+  type: string; // "memory_review"
+  payload: { proposed_memories: ProposedMemory[] };
+}
+
+export interface MemorySavedData {
+  count: number;
 }

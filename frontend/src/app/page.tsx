@@ -17,11 +17,12 @@ import { useReportStream } from "@/lib/useReportStream";
 import { LiveStatusFeed } from "@/components/LiveStatusFeed";
 import { FinalReportView } from "@/components/FinalReportView";
 import { PortfolioOverview } from "@/components/PortfolioOverview";
+import { MemoryReviewModal } from "@/components/MemoryReviewModal";
 
 const DEMO_USER = "idan_demo";
 
 export default function DashboardPage() {
-  const { phase, statuses, report, error, start } = useReportStream();
+  const { phase, statuses, report, error, review, resume, start } = useReportStream();
 
   return (
     <main className="min-h-screen bg-slate-950 text-slate-100">
@@ -44,10 +45,11 @@ export default function DashboardPage() {
           </div>
           <button
             onClick={() => start(DEMO_USER)}
-            disabled={phase === "streaming"}
-            className="rounded-lg bg-emerald-600 px-4 py-2 font-medium text-white transition-colors hover:bg-emerald-500 disabled:opacity-50"
-          >
-            {phase === "streaming" ? "Analyzing…" : "Generate report"}
+            disabled={phase === "streaming" || phase === "awaiting_review" || phase === "saving"}
+            className="rounded-lg bg-emerald-600 px-4 py-2 font-medium text-white transition-colors hover:bg-emerald-500 disabled:opacity-50">
+            {phase === "streaming" || phase === "awaiting_review" || phase === "saving"
+              ? "Analyzing…"
+              : "Generate report"}
           </button>
         </header>
 
@@ -79,6 +81,13 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
+      {(phase === "awaiting_review" || phase === "saving") && review && (
+        <MemoryReviewModal
+          proposedMemories={review.proposedMemories}
+          saving={phase === "saving"}
+          onApprove={(indices) => resume(review.threadId, indices)}
+        />
+      )}
     </main>
   );
 }

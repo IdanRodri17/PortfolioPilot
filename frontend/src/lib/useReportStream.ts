@@ -1,27 +1,22 @@
 "use client";
 
 /**
- * useReportStream — opens the report SSE stream and accumulates it into
- * typed React state the dashboard renders against.
+ * useReportStream — drives the full HITL report flow (V6).
  *
- * Why EventSource (not fetch): the backend GET /api/generate-report is a
- * long-lived text/event-stream, not a one-shot body. EventSource is the
- * browser's native client for it — it holds the connection open and
- * pushes each event as it arrives.
+ * Two transports, because the two legs need different HTTP shapes:
+ *   - Stream 1 (generate): GET SSE via the browser's native EventSource.
+ *   - Stream 2 (resume):   POST SSE — the approved indices ride in the body,
+ *                          which EventSource (GET-only) can't do, so we read
+ *                          it with fetch() + response.body.getReader() and a
+ *                          small SSE parser.
  *
- * Two EventSource footguns this hook handles:
- *   1. Named events. The browser's EventSource only fires `onmessage` for
- *      UNNAMED events. The backend names every event (event: status,
- *      event: report_complete, event: error), so we must addEventListener
- *      per name — a bare onmessage would receive nothing.
- *   2. Auto-reconnect. When the stream closes, EventSource assumes the
- *      connection dropped and reopens it — which would re-run the whole
- *      graph. So on terminal events (report_complete, error) and on a
- *      transport error we call es.close() explicitly to stop that.
+ * State machine: idle -> streaming -> done, OR
+ *                idle -> streaming -> done -> awaiting_review -> saving -> done.
  *
- * The status feed is the V4 showpiece: the burst of sentiment_agent
- * starts (each carrying its symbol) is the parallel Send() fan-out made
- * visible, exactly as seen in the curl trace.
+ * report_complete is NOT terminal anymore: a human_input_required may follow it
+ * in the same stream. So we keep the connection open after the report and only
+ * treat a close as clean once we've seen a report/review/error (terminalRef) —
+ * otherwise EventSource's auto-reconnect would re-run the whole graph.
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -29,19 +24,51 @@ import type {
   FinalReport,
   StatusEventData,
   ErrorEventData,
+  ProposedMemory,
+  HumanInputRequiredData,
+  MemorySavedData,
 } from "@/lib/types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL;
 
-// idle -> streaming -> (done | error). The dashboard switches UI on this.
-export type StreamPhase = "idle" | "streaming" | "done" | "error";
+export type StreamPhase =
+  | "idle"
+  | "streaming"
+  | "done"
+  | "awaiting_review"
+  | "saving"
+  | "error";
+
+export interface ReviewState {
+  threadId: string;
+  proposedMemories: ProposedMemory[];
+}
 
 export interface UseReportStream {
   phase: StreamPhase;
-  statuses: StatusEventData[]; // accumulated, in arrival order
+  statuses: StatusEventData[];
   report: FinalReport | null;
   error: ErrorEventData | null;
+  review: ReviewState | null;
+  savedCount: number | null;
   start: (userId: string) => void;
+  resume: (threadId: string, approvedIndices: number[]) => Promise<void>;
+}
+
+/** Parse one SSE block ("event: X\ndata: Y") into {event, data}. */
+function parseSseBlock(block: string): { event: string; data: unknown } | null {
+  let event = "message";
+  const dataLines: string[] = [];
+  for (const line of block.split("\n")) {
+    if (line.startsWith("event:")) event = line.slice(6).trim();
+    else if (line.startsWith("data:")) dataLines.push(line.slice(5).trim());
+  }
+  if (dataLines.length === 0) return null;
+  try {
+    return { event, data: JSON.parse(dataLines.join("\n")) };
+  } catch {
+    return null;
+  }
 }
 
 export function useReportStream(): UseReportStream {
@@ -49,10 +76,13 @@ export function useReportStream(): UseReportStream {
   const [statuses, setStatuses] = useState<StatusEventData[]>([]);
   const [report, setReport] = useState<FinalReport | null>(null);
   const [error, setError] = useState<ErrorEventData | null>(null);
+  const [review, setReview] = useState<ReviewState | null>(null);
+  const [savedCount, setSavedCount] = useState<number | null>(null);
 
-  // Hold the live connection in a ref so re-renders don't lose it and we
-  // can close it on a new run or on unmount.
   const esRef = useRef<EventSource | null>(null);
+  // True once a report/review/error has been seen — tells the transport
+  // onerror that a subsequent connection close is the expected end, not a fault.
+  const terminalRef = useRef(false);
 
   const close = useCallback(() => {
     esRef.current?.close();
@@ -61,51 +91,67 @@ export function useReportStream(): UseReportStream {
 
   const start = useCallback(
     (userId: string) => {
-      // A fresh run: tear down any prior connection and reset state.
       close();
       setStatuses([]);
       setReport(null);
       setError(null);
+      setReview(null);
+      setSavedCount(null);
       setPhase("streaming");
+      terminalRef.current = false;
 
       const url = `${API_BASE}/api/generate-report?user_id=${encodeURIComponent(userId)}`;
       const es = new EventSource(url);
       esRef.current = es;
 
-      // Footgun #1: one listener per NAMED event.
       es.addEventListener("status", (e: MessageEvent) => {
-        const data = JSON.parse(e.data) as StatusEventData;
-        setStatuses((prev) => [...prev, data]);
+        setStatuses((prev) => [...prev, JSON.parse(e.data) as StatusEventData]);
       });
 
+      // Report arrives — render it, but DON'T close: a human_input_required may
+      // still follow in this same stream. Mark terminal so a later close reads
+      // as clean.
       es.addEventListener("report_complete", (e: MessageEvent) => {
-        const data = JSON.parse(e.data) as FinalReport;
-        setReport(data);
+        setReport(JSON.parse(e.data) as FinalReport);
         setPhase("done");
-        close(); // Footgun #2: terminal event — stop the auto-reconnect.
+        terminalRef.current = true;
+      });
+
+      // The pause: open the modal and close THIS stream. Resume is a new stream.
+      es.addEventListener("human_input_required", (e: MessageEvent) => {
+        const data = JSON.parse(e.data) as HumanInputRequiredData;
+        setReview({
+          threadId: data.thread_id,
+          proposedMemories: data.payload.proposed_memories,
+        });
+        setPhase("awaiting_review");
+        terminalRef.current = true;
+        close();
       });
 
       es.addEventListener("error", (e: MessageEvent) => {
-        // Application-level error event from the backend (has a JSON body).
-        // Distinct from a transport error (handled in onerror below), which
-        // carries no data. Guard on e.data to tell them apart.
         if (e.data) {
-          const data = JSON.parse(e.data) as ErrorEventData;
-          setError(data);
+          setError(JSON.parse(e.data) as ErrorEventData);
         } else {
           setError({ code: "STREAM_ERROR", message: "Connection failed." });
         }
         setPhase("error");
+        terminalRef.current = true;
         close();
       });
 
-      // Transport-level failure (server down, network drop, CORS). Fires
-      // with no data. Without closing here, EventSource would keep retrying.
       es.onerror = () => {
-        // If the stream already finished cleanly, esRef was nulled by
-        // close() and this is just the post-close blip — ignore it.
-        if (esRef.current === null) return;
-        setError({ code: "STREAM_ERROR", message: "Connection to the report stream failed." });
+        if (esRef.current === null) return; // already closed cleanly
+        if (terminalRef.current) {
+          // Report (or review/error) already handled — this is the stream
+          // closing normally (e.g. the no-proposals path ends at report_complete).
+          close();
+          return;
+        }
+        setError({
+          code: "STREAM_ERROR",
+          message: "Connection to the report stream failed.",
+        });
         setPhase("error");
         close();
       };
@@ -113,8 +159,62 @@ export function useReportStream(): UseReportStream {
     [close],
   );
 
-  // Close the connection if the component unmounts mid-stream.
+  // Resume leg: POST the approvals, read the SSE response with a stream reader.
+  const resume = useCallback(
+    async (threadId: string, approvedIndices: number[]) => {
+      setPhase("saving");
+      try {
+        const res = await fetch(
+          `${API_BASE}/api/resume-graph?thread_id=${encodeURIComponent(threadId)}`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ approved_indices: approvedIndices }),
+          },
+        );
+        if (!res.ok || !res.body) {
+          setError({ code: "RESUME_HTTP", message: `Resume failed: HTTP ${res.status}` });
+          setPhase("error");
+          setReview(null);
+          return;
+        }
+
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          let sep: number;
+          while ((sep = buffer.indexOf("\n\n")) !== -1) {
+            const block = buffer.slice(0, sep);
+            buffer = buffer.slice(sep + 2);
+            const ev = parseSseBlock(block);
+            if (!ev) continue;
+            if (ev.event === "status") {
+              setStatuses((prev) => [...prev, ev.data as StatusEventData]);
+            } else if (ev.event === "memory_saved") {
+              setSavedCount((ev.data as MemorySavedData).count);
+              setPhase("done");
+              setReview(null); // closes the modal
+            } else if (ev.event === "error") {
+              setError(ev.data as ErrorEventData);
+              setPhase("error");
+              setReview(null);
+            }
+          }
+        }
+      } catch (e) {
+        setError({ code: "RESUME_ERROR", message: String(e) });
+        setPhase("error");
+        setReview(null);
+      }
+    },
+    [],
+  );
+
   useEffect(() => close, [close]);
 
-  return { phase, statuses, report, error, start };
+  return { phase, statuses, report, error, review, savedCount, start, resume };
 }
