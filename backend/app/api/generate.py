@@ -63,7 +63,7 @@ from sqlalchemy.orm import Session
 
 from app.db.base import get_db, SessionLocal
 from app.db.models import User, Report
-from app.graph.builder import graph as compiled_graph
+import app.graph.builder as graph_builder
 
 logger = logging.getLogger(__name__)
 
@@ -90,13 +90,13 @@ _STATUS_NODES = {
 
 
 def get_graph():
-    """Provider for the compiled LangGraph singleton.
+    """Provider for the compiled graph singleton.
 
-    Graph is built once at module import (graph/builder.py). Returns the
-    same instance per call; tests override via
-    app.dependency_overrides[get_graph].
+    Reads builder.graph dynamically (not a value bound at import) so it returns
+    the checkpointer-bound graph the lifespan recompiles. Tests still override
+    via app.dependency_overrides[get_graph].
     """
-    return compiled_graph
+    return graph_builder.graph
 
 
 def _format_sse(event_type: str, data: dict) -> str:
@@ -303,39 +303,52 @@ class ResumeRequest(BaseModel):
 
 
 async def _resume_event_stream(graph, thread_id: str, approved_indices: list[int]):
-    """Resume a paused graph from its checkpoint and stream the rest (V6).
+    """Resume a paused graph from its checkpoint and stream the result (V6).
 
-    Stream 1 ended at human_input_required. The client now POSTs the approved
-    indices here; we re-enter with Command(resume=...) and the SAME thread_id.
-    LangGraph restores the snapshot, human_review's interrupt() returns our
-    value, and execution flows through memory_saver to END. We stream
-    memory_saver's status, then a terminal memory_saved event with the count.
+    Uses ainvoke(Command(resume=...)) rather than astream_events: the resume
+    runs human_review -> memory_saver -> END with no LLM calls, so a single
+    run-to-completion is simpler and more reliable than mapping a resumed event
+    firehose (which is inconsistent across LangGraph versions). We synthesize
+    the memory_saver status events around it and read what was saved from the
+    returned final state.
     """
     config = {"configurable": {"thread_id": thread_id}}
-    saved = None
+
+    # Guard: only resume a run actually paused at human_review. An unknown or
+    # already-finished thread_id makes Command(resume=...) misbehave; reject it.
     try:
-        async for event in graph.astream_events(
+        snapshot = await graph.aget_state(config)
+    except Exception as exc:  # noqa: BLE001
+        yield _format_sse("error", {"code": "RESUME_ERROR", "message": str(exc)})
+        return
+    if not (snapshot.next and "human_review" in snapshot.next):
+        yield _format_sse(
+            "error",
+            {
+                "code": "NO_PAUSED_RUN",
+                "message": f"No paused memory review found for thread_id '{thread_id}'.",
+            },
+        )
+        return
+
+    yield _format_sse(
+        "status", {"node": "memory_saver", "phase": "start", "metadata": {}}
+    )
+    try:
+        result = await graph.ainvoke(
             Command(resume={"approved_indices": approved_indices}),
             config=config,
-            version="v2",
-        ):
-            kind = event["event"]
-            name = event.get("name", "")
-            if kind == "on_chain_end":
-                output = event.get("data", {}).get("output")
-                if isinstance(output, dict) and "new_memories" in output:
-                    saved = output["new_memories"]
-            if name in _STATUS_NODES and kind in ("on_chain_start", "on_chain_end"):
-                phase = "start" if kind == "on_chain_start" else "end"
-                yield _format_sse(
-                    "status", {"node": name, "phase": phase, "metadata": {}}
-                )
+        )
     except Exception as exc:  # noqa: BLE001
-        logger.exception("resume-graph stream failed for thread_id=%s", thread_id)
+        logger.exception("resume-graph failed for thread_id=%s", thread_id)
         yield _format_sse("error", {"code": "RESUME_ERROR", "message": str(exc)})
         return
 
-    yield _format_sse("memory_saved", {"count": len(saved) if saved is not None else 0})
+    saved = (result or {}).get("new_memories", [])
+    yield _format_sse(
+        "status", {"node": "memory_saver", "phase": "end", "metadata": {}}
+    )
+    yield _format_sse("memory_saved", {"count": len(saved)})
 
 
 @router.post(
