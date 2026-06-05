@@ -35,7 +35,6 @@ from app.graph.nodes.risk_agent import risk_agent
 from app.graph.nodes.memory_loader import memory_loader
 from app.graph.nodes.memory_extractor import memory_extractor
 from app.graph.nodes.guardrail import guardrail, route_after_guardrail
-from app.graph.persistence.checkpointer import checkpointer as memory_checkpointer
 from app.graph.nodes.human_review import human_review
 from app.graph.nodes.memory_saver import memory_saver
 
@@ -147,4 +146,16 @@ def _build_graph(store: BaseStore | None = None, checkpointer=None):
 
 # Module-level singleton, compiled with the PostgresStore singleton.
 # Importers get the same compiled graph.
-graph = _build_graph(store=memory_store, checkpointer=memory_checkpointer)
+graph = _build_graph(store=memory_store)
+
+
+def set_checkpointer(checkpointer) -> None:
+    """Recompile the graph singleton WITH the checkpointer.
+
+    Called once from main.py's lifespan, because the async checkpointer must be
+    constructed inside a running event loop (it binds to the loop in __init__).
+    At import there is no loop, so the singleton above is compiled store-only;
+    the lifespan upgrades it in place before any request is served.
+    """
+    global graph
+    graph = _build_graph(store=memory_store, checkpointer=checkpointer)
