@@ -41,6 +41,9 @@ export default function DashboardPage() {
               <Link href="/memory" className="text-slate-400 transition-colors hover:text-slate-200">
                 Memory
               </Link>
+              <Link href="/settings" className="text-slate-400 transition-colors hover:text-slate-200">
+                Settings
+              </Link>
             </nav>
           </div>
           <button
