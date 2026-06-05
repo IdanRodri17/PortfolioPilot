@@ -11,4 +11,4 @@ sqlalchemy
 psycopg[binary,pool]
 tavily-python
 langgraph-checkpoint-postgres
-
+tzdata
