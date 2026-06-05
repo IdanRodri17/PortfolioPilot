@@ -3,14 +3,17 @@ ORM models for PortfolioPilot.
 
 V2: User and Portfolio (this file).
 V5: Report (historical persisted reports).
-V8 stretch: User.telegram_chat_id column added.
+V7: User.telegram_chat_id (set by the Telegram connect flow) + DeliveryPreference
+    (per-user scheduled-delivery settings).
 
 The langgraph.store.postgres tables for semantic memory (V5) are not
 declared here — they are auto-managed by store.setup() and live
 outside this Base.metadata namespace by design.
 """
 
-from sqlalchemy import Column, String, Integer, DateTime, ForeignKey
+from datetime import time
+
+from sqlalchemy import Column, String, Integer, DateTime, ForeignKey, Boolean, Time
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -32,6 +35,8 @@ class User(Base):
     id = Column(String, primary_key=True)
     name = Column(String, nullable=True)
     email = Column(String, nullable=True)
+    telegram_chat_id = Column(String, nullable=True)
+    # Telegram chat to deliver to; set by the V7 connect flow. Null until linked.
     risk_profile = Column(
         String, nullable=False
     )  # "conservative" | "balanced" | "aggressive"
@@ -52,6 +57,13 @@ class User(Base):
     # Each user has exactly one portfolio row in V2.
     portfolio = relationship(
         "Portfolio",
+        back_populates="user",
+        uselist=False,
+        cascade="all, delete-orphan",
+    )
+    # 1:1 with DeliveryPreference (V7), same shape as portfolio above.
+    delivery_preference = relationship(
+        "DeliveryPreference",
         back_populates="user",
         uselist=False,
         cascade="all, delete-orphan",
@@ -147,3 +159,84 @@ class Report(Base):
     )
     raw_result = Column(JSONB, nullable=False)
     confidence_flag = Column(String, nullable=True)  # "high" | "low" | None
+
+
+class DeliveryPreference(Base):
+    """One row per user: how and when scheduled reports are delivered (V7).
+
+    1:1 with User (like Portfolio) and deliberately a SEPARATE table rather
+    than columns bolted onto User — delivery is an opt-in concern with its own
+    lifecycle, and isolating it keeps the User row about identity, not
+    notification plumbing. The unique FK enforces the 1:1 at the DB level
+    exactly as Portfolio does, so a per-user upsert is unambiguous.
+
+    The cadence shape — why three fields for one schedule:
+        `cadence` selects the rule; `interval_days` and `weekday` are the
+        parameters that rule needs, and only one is ever relevant at a time:
+          - "daily"        -> neither (send every day at send_time_local).
+          - "every_n_days" -> interval_days (e.g. 3 = every third day).
+          - "weekly"       -> weekday (0=Mon .. 6=Sun).
+        Both parameter columns are nullable because each is dead weight for two
+        of the three cadences. The Pydantic boundary (step 2) enforces "the
+        field your cadence needs is present"; the DB just stores it. No DB CHECK
+        constraints — the boundary is the source of truth (pattern #5).
+
+    Why send_time_local (a naive TIME) + a separate IANA `timezone` string, and
+    NOT one timestamptz: the user's intent is a WALL-CLOCK time, not an instant.
+    08:00 in Asia/Jerusalem is a different UTC moment in winter (UTC+2) than in
+    summer (UTC+3) — Israel observes DST. Freezing a UTC offset would drift an
+    hour twice a year. Storing the wall-clock time and the zone NAME separately
+    lets the dispatcher (V7c) resolve "the next 08:00 in this zone" with
+    zoneinfo at read time, always correct across DST.
+
+    last_sent_at is the heartbeat: the due-check (V7c) is "is now past this
+    user's scheduled time for the current period, AND last_sent_at is before
+    that scheduled instant?" Stamping it only AFTER a successful dispatch is
+    what makes a ~10-minute cron idempotent — it won't re-send within the same
+    period. Nullable because a brand-new preference has never sent.
+    """
+
+    __tablename__ = "delivery_preferences"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+
+    # unique=True -> the 1:1 with users, and an unambiguous upsert target
+    # (same rationale as Portfolio.user_id).
+    user_id = Column(
+        String,
+        ForeignKey("users.id", ondelete="CASCADE"),
+        unique=True,
+        nullable=False,
+        index=True,
+    )
+
+    # ─── Channels (at least one true; enforced at the Pydantic boundary) ───
+    deliver_telegram = Column(Boolean, nullable=False, default=False)
+    deliver_email = Column(Boolean, nullable=False, default=False)
+
+    # ─── Schedule ───
+    # String, not a DB enum — matches User.risk_profile; the Literal is
+    # enforced in Pydantic.
+    cadence = Column(String, nullable=False, default="daily")
+    interval_days = Column(Integer, nullable=True)  # iff cadence == every_n_days
+    weekday = Column(Integer, nullable=True)  # 0=Mon..6=Sun; iff cadence == weekly
+
+    # Naive wall-clock time, paired with `timezone` below. NOT timestamptz.
+    send_time_local = Column(Time, nullable=False, default=time(8, 0))
+    # IANA name (e.g. "Asia/Jerusalem"). A per-user default for the demo —
+    # configurable, NOT a hardcode in the scheduling logic.
+    timezone = Column(String, nullable=False, default="Asia/Jerusalem")
+
+    enabled = Column(Boolean, nullable=False, default=True)  # master on/off
+
+    # Drives the due-check + dedupe (stamped after a successful send).
+    last_sent_at = Column(DateTime(timezone=True), nullable=True)
+
+    updated_at = Column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
+
+    user = relationship("User", back_populates="delivery_preference")
