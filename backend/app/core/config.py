@@ -35,7 +35,7 @@ class Settings(BaseSettings):
         V1: OpenAI credentials only.
         V2: + DATABASE_URL (Postgres).
         V3: + TAVILY_API_KEY, + OPENAI_MODEL_SYNTHESIZER upgraded to gpt-4o.
-        V7: + TELEGRAM_BOT_TOKEN (Telegram delivery channel).
+        V7: + TELEGRAM_BOT_TOKEN, RESEND_API_KEY, FROM_EMAIL (delivery channels).
     """
 
     model_config = SettingsConfigDict(
@@ -53,6 +53,8 @@ class Settings(BaseSettings):
     # ─── Optional with defaults ───
     openai_model_synthesizer: str = "gpt-4o-mini"
     telegram_bot_token: str | None = None
+    resend_api_key: str | None = None
+    from_email: str = "PortfolioPilot <onboarding@resend.dev>"
 
 
 @lru_cache
