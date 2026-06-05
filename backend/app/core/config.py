@@ -13,6 +13,7 @@ With this single import-time side effect, the rest of the app needs no
 further env-loading code.
 """
 
+import warnings
 from functools import lru_cache
 
 from dotenv import load_dotenv
@@ -34,7 +35,7 @@ class Settings(BaseSettings):
         V1: OpenAI credentials only.
         V2: + DATABASE_URL (Postgres).
         V3: + TAVILY_API_KEY, + OPENAI_MODEL_SYNTHESIZER upgraded to gpt-4o.
-        V8: + TELEGRAM_BOT_TOKEN (stretch).
+        V7: + TELEGRAM_BOT_TOKEN (Telegram delivery channel).
     """
 
     model_config = SettingsConfigDict(
@@ -51,6 +52,7 @@ class Settings(BaseSettings):
 
     # ─── Optional with defaults ───
     openai_model_synthesizer: str = "gpt-4o-mini"
+    telegram_bot_token: str | None = None
 
 
 @lru_cache
@@ -67,3 +69,10 @@ def get_settings() -> Settings:
             ...
     """
     return Settings()
+
+
+warnings.filterwarnings(
+    "ignore",
+    message="Pydantic serializer warnings",
+    category=UserWarning,
+)
