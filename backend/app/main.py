@@ -31,6 +31,7 @@ from app.api.generate import router as generate_router
 from app.api.portfolio import router as portfolio_router
 from app.api.reports import router as reports_router
 from app.api.memories import router as memories_router
+from app.graph.builder import set_checkpointer
 
 # Browser origins permitted to call the API. The Next.js dev server runs on
 # :3000 — a different origin from the backend's :8000 — so its EventSource
@@ -63,12 +64,11 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     all provisioning lives together. V6's PostgresSaver checkpointer setup
     will be added to the startup block below.
     """
-    # ─── Startup ───
     Base.metadata.create_all(bind=engine)
     open_store()
-    await open_checkpointer()
+    checkpointer = await open_checkpointer()
+    set_checkpointer(checkpointer)
     yield
-    # ─── Shutdown ───
     await close_checkpointer()
     close_store()
 

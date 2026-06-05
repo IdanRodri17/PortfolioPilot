@@ -5,30 +5,29 @@ Target path: backend/app/graph/persistence/checkpointer.py
 
 The checkpointer persists a snapshot of graph state at every super-step,
 keyed by thread_id (we reuse report_id). It is what makes interrupt()
-resumable: when human_review calls interrupt(), the runtime saves the
-snapshot here, the run exits, and a later Command(resume=...) reads this
-snapshot back and restarts at the interrupted node.
+resumable: when human_review calls interrupt(), the runtime saves the snapshot
+here, the run exits, and a later Command(resume=...) reads it back and restarts
+at the interrupted node.
 
 Why ASYNC (AsyncPostgresSaver, not the sync PostgresSaver the SRS sketched):
-    The graph is driven by graph.astream_events(...) — the async Pregel
-    runtime. The runtime calls the checkpointer's *async* methods
-    (aget_tuple/aput/...). The sync PostgresSaver implements only the sync
-    methods; under an async run those async methods raise NotImplementedError.
-    AsyncPostgresSaver implements the async side, so it is the correct pair
-    for our SSE streaming. (The store stays sync because it is called from
-    inside sync nodes, which LangGraph runs in a threadpool — a different code
-    path from the runtime-managed checkpointer.)
+    The graph runs via graph.astream_events(...) — the async Pregel runtime,
+    which calls the checkpointer's async methods. The sync PostgresSaver leaves
+    those unimplemented (NotImplementedError under an async run). The store
+    stays sync because it's called from inside sync nodes (threadpool) — a
+    different code path from the runtime-managed checkpointer.
 
-Why its OWN async pool (separate from the store's sync pool):
-    AsyncPostgresSaver needs an AsyncConnectionPool; the store's pool is the
-    sync ConnectionPool. They cannot be the same object. So this module owns
-    a second psycopg pool — async — against the same Postgres DB. Same
-    open=False / autocommit=True discipline as the store pool: imports stay
-    DB-free, DDL/writes need autocommit. open/close are awaited in lifespan.
+Why construction is DEFERRED to open_checkpointer() (not module import):
+    AsyncPostgresSaver.__init__ calls asyncio.get_running_loop() to bind to its
+    loop. At import there is no running loop -> RuntimeError. So we build BOTH
+    the async pool and the saver inside open_checkpointer(), which the lifespan
+    awaits — i.e. inside uvicorn's running loop, the same loop that serves every
+    request. builder.set_checkpointer() then recompiles the graph singleton with
+    it. (Its own async pool, separate from the store's sync pool, against the
+    same Postgres DB.)
 
 Versioning:
-    V6: AsyncPostgresSaver added here, compiled into the graph alongside the
-        store via builder.compile(checkpointer=..., store=...).
+    V6: AsyncPostgresSaver, built in the lifespan and compiled into the graph
+        alongside the store.
 """
 
 from psycopg_pool import AsyncConnectionPool
@@ -36,42 +35,40 @@ from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 
 from app.core.config import get_settings
 
+# Constructed in open_checkpointer() (inside the running loop), not at import.
+_pool: AsyncConnectionPool | None = None
+checkpointer: AsyncPostgresSaver | None = None
+
 
 def _checkpointer_conninfo() -> str:
-    """Same +psycopg -> libpq translation the store does (see store.py).
-
-    psycopg's pool passes conninfo straight to libpq, which rejects
-    SQLAlchemy's postgresql+psycopg:// dialect marker. The replace is a
-    no-op if the URL is already a plain postgresql:// one.
-    """
+    """Same +psycopg -> libpq translation the store does (see store.py)."""
     return get_settings().database_url.replace("postgresql+psycopg://", "postgresql://")
 
 
-# Async pool dedicated to the checkpointer. open=False keeps importing this
-# module (which builder.py does to compile the graph) DB-free; the pool is
-# opened in main.py's lifespan. autocommit=True is required for setup()'s DDL
-# and the saver's writes.
-_pool = AsyncConnectionPool(
-    conninfo=_checkpointer_conninfo(),
-    open=False,
-    kwargs={"autocommit": True},
-)
-
-# The checkpointer singleton, compiled into the graph in builder.py.
-checkpointer = AsyncPostgresSaver(conn=_pool)
-
-
-async def open_checkpointer() -> None:
-    """Open the async pool and provision checkpointer tables (lifespan startup).
+async def open_checkpointer() -> AsyncPostgresSaver:
+    """Build + open the async pool and the saver IN the running loop, then
+    provision its tables. Returns the saver so the lifespan can hand it to
+    builder.set_checkpointer().
 
     setup() is idempotent (CREATE TABLE IF NOT EXISTS for checkpoints,
     checkpoint_blobs, checkpoint_writes, checkpoint_migrations), so warm
     restarts and --reload are no-ops.
     """
+    global _pool, checkpointer
+    _pool = AsyncConnectionPool(
+        conninfo=_checkpointer_conninfo(),
+        open=False,
+        kwargs={"autocommit": True},
+    )
     await _pool.open()
+    checkpointer = AsyncPostgresSaver(conn=_pool)
     await checkpointer.setup()
+    return checkpointer
 
 
 async def close_checkpointer() -> None:
     """Close the async pool on app shutdown, releasing all connections."""
-    await _pool.close()
+    global _pool
+    if _pool is not None:
+        await _pool.close()
+        _pool = None
