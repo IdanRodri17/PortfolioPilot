@@ -55,6 +55,7 @@ class Settings(BaseSettings):
     telegram_bot_token: str | None = None
     resend_api_key: str | None = None
     from_email: str = "PortfolioPilot <onboarding@resend.dev>"
+    public_app_base_url: str = "http://localhost:3000"
 
 
 @lru_cache
