@@ -139,3 +139,43 @@ export interface HumanInputRequiredData {
 export interface MemorySavedData {
   count: number;
 }
+
+export type Cadence = "daily" | "every_n_days" | "weekly";
+
+// The stored preference, as returned inside the GET view and by PUT.
+export interface DeliveryPreference {
+  user_id: string;
+  deliver_telegram: boolean;
+  deliver_email: boolean;
+  cadence: Cadence;
+  interval_days: number | null; // set when cadence === "every_n_days"
+  weekday: number | null;       // 0=Mon … 6=Sun, set when cadence === "weekly"
+  send_time_local: string;      // "HH:MM:SS" wall-clock in `timezone`
+  timezone: string;             // IANA name, e.g. "Asia/Jerusalem"
+  enabled: boolean;
+  last_sent_at: string | null;  // ISO UTC, or null if never sent
+  updated_at: string;           // ISO UTC
+}
+
+// What GET /api/delivery-preferences/{user_id} returns: the preference plus
+// the two "is this channel even usable" flags the page needs to gate the
+// checkboxes (you can't enable email with no address on file, etc.).
+export interface DeliveryPreferencesView {
+  user_id: string;
+  email_set: boolean;
+  telegram_connected: boolean;
+  preference: DeliveryPreference | null; // null until first saved
+}
+
+// The PUT body — note interval_days/weekday are conditionally required by the
+// backend validators depending on cadence, hence optional here.
+export interface DeliveryPreferenceInput {
+  deliver_telegram: boolean;
+  deliver_email: boolean;
+  cadence: Cadence;
+  interval_days?: number | null;
+  weekday?: number | null;
+  send_time_local: string; // "HH:MM" from an <input type="time"> is fine
+  timezone: string;
+  enabled: boolean;
+}

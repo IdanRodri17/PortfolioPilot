@@ -19,6 +19,9 @@ import type {
   Memory,
   ReportSummary,
   ReportDetail,
+  DeliveryPreferencesView, 
+  DeliveryPreference, 
+  DeliveryPreferenceInput
 } from "@/lib/types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL;
@@ -74,5 +77,46 @@ export async function getReportsHistory(userId: string): Promise<ReportSummary[]
 export async function getReport(reportId: string): Promise<ReportDetail> {
   const res = await fetch(`${API_BASE}/api/reports/${reportId}`);
   if (!res.ok) throw new Error(`getReport failed: HTTP ${res.status}`);
+  return res.json();
+}
+
+// (uses the same API_BASE constant your other helpers use)
+
+export async function getDeliveryPreferences(
+  userId: string,
+): Promise<DeliveryPreferencesView> {
+  const res = await fetch(`${API_BASE}/api/delivery-preferences/${userId}`);
+  if (!res.ok) throw new Error(`Failed to load delivery preferences (${res.status})`);
+  return res.json();
+}
+
+export async function putDeliveryPreferences(
+  userId: string,
+  input: DeliveryPreferenceInput,
+): Promise<DeliveryPreference> {
+  const res = await fetch(`${API_BASE}/api/delivery-preferences/${userId}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) {
+    // The backend's address-gate returns 422 with a useful detail message.
+    const detail = await res.json().catch(() => null);
+    throw new Error(detail?.detail ?? `Failed to save preferences (${res.status})`);
+  }
+  return res.json();
+}
+
+export async function connectTelegram(
+  userId: string,
+): Promise<{ telegram_connected: boolean; chat_id: string }> {
+  const res = await fetch(`${API_BASE}/api/telegram/connect/${userId}`, {
+    method: "POST",
+  });
+  if (!res.ok) {
+    const detail = await res.json().catch(() => null);
+    // 409 = "message the bot first, then connect"
+    throw new Error(detail?.detail ?? `Failed to connect Telegram (${res.status})`);
+  }
   return res.json();
 }
