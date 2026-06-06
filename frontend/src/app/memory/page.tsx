@@ -5,28 +5,31 @@ import Link from "next/link";
 import { getMemories, deleteMemories } from "@/lib/api";
 import type { Memory } from "@/lib/types";
 
-const DEMO_USER = "idan_demo";
+import { useUserId } from "@/lib/useUserId";
 type LoadState = "loading" | "ready" | "error";
 
 export default function MemoryPage() {
+  const { userId } = useUserId();
   const [load, setLoad] = useState<LoadState>("loading");
   const [memories, setMemories] = useState<Memory[]>([]);
   const [wiping, setWiping] = useState(false);
 
   useEffect(() => {
+    if (!userId) return;
     let active = true;
-    getMemories(DEMO_USER)
+    getMemories(userId)
       .then((data) => active && (setMemories(data), setLoad("ready")))
       .catch(() => active && setLoad("error"));
     return () => {
       active = false;
     };
-  }, []);
+  }, [userId]);
 
   async function handleWipe() {
+    if (!userId) return;
     setWiping(true);
     try {
-      await deleteMemories(DEMO_USER);
+      await deleteMemories(userId);
       setMemories([]);
     } finally {
       setWiping(false);

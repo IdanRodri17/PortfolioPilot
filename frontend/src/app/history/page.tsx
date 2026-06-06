@@ -6,24 +6,26 @@ import { getReportsHistory, getReport } from "@/lib/api";
 import type { ReportSummary, ReportDetail } from "@/lib/types";
 import { FinalReportView } from "@/components/FinalReportView";
 
-const DEMO_USER = "idan_demo";
+import { useUserId } from "@/lib/useUserId";
 const usd = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
 
 export default function HistoryPage() {
+  const { userId } = useUserId();
   const [load, setLoad] = useState<"loading" | "ready" | "error">("loading");
   const [reports, setReports] = useState<ReportSummary[]>([]);
   const [selected, setSelected] = useState<ReportDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
 
   useEffect(() => {
+    if (!userId) return;
     let active = true;
-    getReportsHistory(DEMO_USER)
+    getReportsHistory(userId)
       .then((data) => active && (setReports(data), setLoad("ready")))
       .catch(() => active && setLoad("error"));
     return () => {
       active = false;
     };
-  }, []);
+  }, [userId]);
 
   async function openReport(id: string) {
     setDetailLoading(true);

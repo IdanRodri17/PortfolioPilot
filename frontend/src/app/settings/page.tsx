@@ -27,7 +27,8 @@ import type {
   Cadence,
 } from "@/lib/types";
 
-const USER_ID = "idan_demo";
+import { useUserId } from "@/lib/useUserId";
+
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL;
 
 const TIMEZONES = [
@@ -84,6 +85,7 @@ function errMsg(e: unknown): string {
 // ─── component ─────────────────────────────────────────────────────────────
 
 export default function SettingsPage() {
+  const { userId } = useUserId();
   const [view, setView] = useState<DeliveryPreferencesView | null>(null);
   const [form, setForm] = useState<DeliveryPreferenceInput>(defaultForm());
   const [loading, setLoading] = useState(true);
@@ -95,14 +97,15 @@ export default function SettingsPage() {
   const [runNowMsg, setRunNowMsg] = useState<string | null>(null);
 
   useEffect(() => {
-    getDeliveryPreferences(USER_ID)
+    if (!userId) return; // wait for the session to resolve
+    getDeliveryPreferences(userId)
       .then((v) => {
         setView(v);
         if (v.preference) setForm(preferenceToForm(v.preference));
       })
       .catch((e) => console.error("Failed to load delivery preferences:", e))
       .finally(() => setLoading(false));
-  }, []);
+  }, [userId]);
 
   function patch<K extends keyof DeliveryPreferenceInput>(
     key: K,
@@ -124,7 +127,7 @@ export default function SettingsPage() {
     setSaving(true);
     setSaveMsg(null);
     try {
-      const saved = await putDeliveryPreferences(USER_ID, form);
+      const saved = await putDeliveryPreferences(userId!, form);
       setView((v) => (v ? { ...v, preference: saved } : v));
       setSaveMsg({ ok: true, text: "Settings saved" });
       setTimeout(() => setSaveMsg(null), 3000);
@@ -139,7 +142,7 @@ export default function SettingsPage() {
     setConnecting(true);
     setConnectError(null);
     try {
-      await connectTelegram(USER_ID);
+      await connectTelegram(userId!);
       setView((v) => (v ? { ...v, telegram_connected: true } : v));
     } catch (e) {
       setConnectError(errMsg(e));
@@ -152,7 +155,7 @@ export default function SettingsPage() {
     setRunningNow(true);
     setRunNowMsg(null);
     try {
-      const res = await fetch(`${API_BASE}/api/deliveries/run-now/${USER_ID}`, {
+      const res = await fetch(`${API_BASE}/api/deliveries/run-now/${userId}`, {
         method: "POST",
       });
       const data = await res.json();

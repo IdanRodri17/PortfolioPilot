@@ -26,7 +26,7 @@ import Link from "next/link";
 import { getPortfolio, upsertPortfolio } from "@/lib/api";
 import type { RiskProfile } from "@/lib/types";
 
-const DEMO_USER = "idan_demo";
+import { useUserId } from "@/lib/useUserId";
 const RISK_PROFILES: RiskProfile[] = ["conservative", "balanced", "aggressive"];
 
 interface Row {
@@ -41,6 +41,7 @@ type SaveState =
   | { status: "error"; message: string };
 
 function rowsToAssets(rows: Row[]): { assets?: Record<string, number>; error?: string } {
+
   const assets: Record<string, number> = {};
   for (const r of rows) {
     const symbol = r.symbol.trim().toUpperCase();
@@ -57,14 +58,16 @@ function rowsToAssets(rows: Row[]): { assets?: Record<string, number>; error?: s
 }
 
 export default function PortfolioEditorPage() {
+  const { userId } = useUserId();
   const [load, setLoad] = useState<LoadState>("loading");
   const [rows, setRows] = useState<Row[]>([]);
   const [riskProfile, setRiskProfile] = useState<RiskProfile>("balanced");
   const [save, setSave] = useState<SaveState>({ status: "idle" });
 
   useEffect(() => {
+    if (!userId) return;
     let active = true;
-    getPortfolio(DEMO_USER)
+    getPortfolio(userId)
       .then((data) => {
         if (!active) return;
         setRows(
@@ -81,7 +84,7 @@ export default function PortfolioEditorPage() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [userId]);
 
   // Any edit invalidates the previous save/error message.
   function touched() {
@@ -114,7 +117,7 @@ export default function PortfolioEditorPage() {
     setSave({ status: "saving" });
     try {
       await upsertPortfolio({
-        user_id: DEMO_USER,
+        user_id: userId!,
         assets: assets!,
         risk_profile: riskProfile,
       });

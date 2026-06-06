@@ -19,9 +19,10 @@ import { FinalReportView } from "@/components/FinalReportView";
 import { PortfolioOverview } from "@/components/PortfolioOverview";
 import { MemoryReviewModal } from "@/components/MemoryReviewModal";
 
-const DEMO_USER = "idan_demo";
+import { useUserId } from "@/lib/useUserId";
 
 export default function DashboardPage() {
+  const { userId, loading } = useUserId();
   const { phase, statuses, report, error, review, resume, start } = useReportStream();
 
   return (
@@ -47,7 +48,7 @@ export default function DashboardPage() {
             </nav>
           </div>
           <button
-            onClick={() => start(DEMO_USER)}
+            onClick={() => userId && start(userId)}
             disabled={phase === "streaming" || phase === "awaiting_review" || phase === "saving"}
             className="rounded-lg bg-emerald-600 px-4 py-2 font-medium text-white transition-colors hover:bg-emerald-500 disabled:opacity-50">
             {phase === "streaming" || phase === "awaiting_review" || phase === "saving"
@@ -59,7 +60,13 @@ export default function DashboardPage() {
         <div className="grid gap-6 lg:grid-cols-[18rem_1fr]">
           {/* Left: what you hold */}
           <aside>
-            <PortfolioOverview userId={DEMO_USER} />
+            {userId ? (
+              <PortfolioOverview userId={userId} />
+            ) : (
+              <p className="rounded-xl border border-slate-800 bg-slate-900/60 p-5 text-sm text-slate-600">
+                Loading…
+              </p>
+            )}
           </aside>
 
           {/* Right: the analysis flow */}
