@@ -25,9 +25,8 @@ class User(Base):
     """One row per portfolio owner.
 
     Primary key is a string (e.g. "idan_demo") rather than autoincrement
-    int — keeps user_ids stable, human-readable, and URL-safe. Real
-    auth (V7) will replace this with NextAuth-issued IDs but the column
-    type doesn't need to change.
+    int — keeps user_ids stable, human-readable, and URL-safe.
+    Real auth (V8) layers on top of this
     """
 
     __tablename__ = "users"
@@ -37,6 +36,9 @@ class User(Base):
     email = Column(String, nullable=True)
     telegram_chat_id = Column(String, nullable=True)
     # Telegram chat to deliver to; set by the V7 connect flow. Null until linked.
+    hashed_password = Column(String, nullable=True)
+    # bcrypt hash for credential login (V8). Null = this user can't log in
+    # with a password (e.g. rows created before auth, or seeded portfolios).
     risk_profile = Column(
         String, nullable=False
     )  # "conservative" | "balanced" | "aggressive"

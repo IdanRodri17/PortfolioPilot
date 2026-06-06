@@ -14,3 +14,4 @@ langgraph-checkpoint-postgres
 tzdata
 httpx
 apscheduler<4
+bcrypt
