@@ -18,11 +18,13 @@ import { LiveStatusFeed } from "@/components/LiveStatusFeed";
 import { FinalReportView } from "@/components/FinalReportView";
 import { PortfolioOverview } from "@/components/PortfolioOverview";
 import { MemoryReviewModal } from "@/components/MemoryReviewModal";
+import { signOut, useSession } from "next-auth/react";
 
 import { useUserId } from "@/lib/useUserId";
 
 export default function DashboardPage() {
   const { userId, loading } = useUserId();
+  const { data: session } = useSession();
   const { phase, statuses, report, error, review, resume, start } = useReportStream();
 
   return (
@@ -45,6 +47,18 @@ export default function DashboardPage() {
               <Link href="/settings" className="text-slate-400 transition-colors hover:text-slate-200">
                 Settings
               </Link>
+                            {session?.user?.email && (
+                <span className="ml-2 text-slate-600">·</span>
+              )}
+              {session?.user?.email && (
+                <span className="text-slate-500">{session.user.email}</span>
+              )}
+              <button
+                onClick={() => signOut({ callbackUrl: "/login" })}
+                className="text-slate-400 transition-colors hover:text-rose-400"
+              >
+                Sign out
+              </button>
             </nav>
           </div>
           <button
