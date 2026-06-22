@@ -47,7 +47,13 @@ export async function getApiToken(): Promise<string> {
 }
 
 export async function authHeaders(): Promise<Record<string, string>> {
-  return { Authorization: `Bearer ${await getApiToken()}` };
+  // Returns {} when there's no session (e.g. the guest demo). The backend opens
+  // the demo user's read endpoints; any other user without a token then 401s.
+  try {
+    return { Authorization: `Bearer ${await getApiToken()}` };
+  } catch {
+    return {};
+  }
 }
 
 export async function getPortfolio(userId: string): Promise<PortfolioResponse> {

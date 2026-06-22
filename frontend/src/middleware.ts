@@ -40,5 +40,9 @@ export const config = {
   // Match everything EXCEPT the excluded paths. The negative lookahead keeps
   // /login, NextAuth's API routes, and static assets out of the guard so there
   // is no redirect loop and no auth check on public assets.
-  matcher: ["/((?!api/auth|login|_next/static|_next/image|favicon.ico).*)"],
+  matcher: [
+    // V15a: /demo is a public guest route; /api/token self-guards (returns 401
+    // without a session) so it's excluded too.
+    "/((?!api/auth|api/token|login|demo|_next/static|_next/image|favicon.ico).*)",
+  ],
 };

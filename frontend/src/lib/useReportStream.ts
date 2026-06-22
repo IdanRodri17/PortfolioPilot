@@ -113,22 +113,19 @@ export function useReportStream(): UseReportStream {
       terminalRef.current = false;
 
       // EventSource can't set headers, so (V9, option A) the short-lived API
-      // token rides as a query param on this one SSE URL.
-      let token: string;
+      // token rides as a query param. Authenticated users get one; the guest
+      // demo (V15a) has none, so we omit it and let the backend's demo carve-out
+      // decide (any non-demo user without a token gets 401).
+      let token = "";
       try {
         token = await getApiToken();
       } catch {
-        setError({
-          code: "AUTH_ERROR",
-          message: "Could not authenticate the report stream.",
-        });
-        setPhase("error");
-        return;
+        token = "";
       }
 
-      const url = `${API_BASE}/api/generate-report?user_id=${encodeURIComponent(
-        userId,
-      )}&token=${encodeURIComponent(token)}`;
+      const url =
+        `${API_BASE}/api/generate-report?user_id=${encodeURIComponent(userId)}` +
+        (token ? `&token=${encodeURIComponent(token)}` : "");
       const es = new EventSource(url);
       esRef.current = es;
 
