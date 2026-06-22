@@ -4,11 +4,10 @@
 > Captures V12 (V12a portfolio value trend chart, V12b since-last-report diff) —
 > what was built, what deviated from the upgrade spec, and what was deferred.
 
-**Status:** Shipped (code complete; statically verified). The `v12` tag is
-**pending the live end-to-end smoke test** (the /history line chart rendering;
-two consecutive reports showing the diff strip). The V12a series endpoint was
-verified live against `idan_demo`'s 24 archived reports; the V12b diff logic was
-verified offline. Code is committed on `main`.
+**Status:** Shipped. Tagged `v12` on `main`. The live end-to-end smoke test
+passed: the /history value-trend line and the "Since last report" diff strip on
+a freshly generated report were both confirmed in the browser. (The V12a series
+endpoint was also verified live against `idan_demo`'s 24 archived reports.)
 
 **Headline:** the reports the app already archives now tell a story over time —
 a value trend line on /history — and each new report opens with a "since your
@@ -30,7 +29,7 @@ LLM cost.
 - **V12b frontend:** `tsc` clean; `eslint` clean apart from a pre-existing
   unused-`loading` warning in `page.tsx` (a V8 artifact, untouched).
 
-**Smoke tests — pending your live run:**
+**Smoke tests — confirmed live (via the Docker stack):**
 
 - `/history` shows a value line matching the archived totals (left-to-right
   oldest→newest); an empty/single-report history shows no chart (the existing
@@ -96,8 +95,8 @@ resume leg (stream 2) doesn't emit it, so its parser is untouched.
 
 ## Explicitly deferred (build in noted version)
 
-- **Live e2e confirmation + `v12` tag.** Check the /history line and the
-  two-report diff strip, then `git tag v12`.
+- **Push the `v12` tag.** Created locally after the live smoke test passed;
+  `git push origin v12` to publish it.
 - **Persisting risk violations on the report.** If a true violation diff
   ("Resolved: AAPL concentration") is wanted, attach
   `risk_analysis["violations"]` to `FinalReport` (deterministic, like
@@ -154,7 +153,7 @@ feat(v12a): portfolio value trend chart on the history page
 feat(v12b): compute and stream the since-last-report diff
 feat(v12b): render the since-last-report change strip
 docs(v12): add V12 implementation brief
-(tag) v12  — pending live e2e smoke test
+(tag) v12
 ```
 
-To reconstruct the V12 baseline at any point once tagged: `git checkout v12`.
+To reconstruct the V12 baseline at any point: `git checkout v12`.
