@@ -20,6 +20,8 @@ Versioning:
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, status
+
+from app.api.deps import require_owner
 from sqlalchemy.orm import Session
 
 from app.db.base import get_db
@@ -49,7 +51,11 @@ def _latest_chat(updates: list[dict]) -> dict | None:
     "/api/telegram/connect/{user_id}",
     summary="Bind the chat that most recently messaged the bot to a user",
 )
-def connect_telegram(user_id: str, db: Session = Depends(get_db)) -> dict:
+def connect_telegram(
+    user_id: str,
+    db: Session = Depends(get_db),
+    _owner: str = Depends(require_owner),
+) -> dict:
     """Read pending bot updates and bind the latest chat_id to the user.
 
     Pre-req: the user must have just sent the bot a message — that's what puts a

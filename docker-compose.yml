@@ -37,6 +37,10 @@ services:
     # set under `environment:` below override anything in that file.
     env_file:
       - ./backend/.env
+      # V9: the backend verifies the frontend-minted API token, so it needs the
+      # SAME AUTH_SECRET. Pull it from the frontend env (no copy, not in git).
+      # Unknown keys here (NEXT_PUBLIC_*) are ignored by pydantic-settings.
+      - ./frontend/.env.local
     environment:
       # Inside the compose network Postgres is reached by service name, not
       # localhost — this overrides the host-oriented DATABASE_URL in .env.

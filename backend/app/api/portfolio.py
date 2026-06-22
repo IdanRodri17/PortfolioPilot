@@ -23,6 +23,7 @@ Versioning:
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
+from app.api.deps import require_owner, require_user
 from app.db.base import get_db
 from app.db.models import User, Portfolio
 from app.schemas.portfolio import PortfolioRequest, PortfolioResponse
@@ -50,6 +51,7 @@ def _to_response(user: User, portfolio: Portfolio) -> PortfolioResponse:
 def upsert_portfolio(
     payload: PortfolioRequest,
     db: Session = Depends(get_db),
+    current_user: str = Depends(require_user),
 ) -> PortfolioResponse:
     """Upsert User + Portfolio for the given user_id.
 
@@ -68,6 +70,12 @@ def upsert_portfolio(
         bootcamp demo's single-user-at-a-time pattern; harden in
         production with a row-level lock or a true upsert query.
     """
+    if payload.user_id != current_user:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only modify your own portfolio.",
+        )
+
     user = db.get(User, payload.user_id)
 
     if user is None:
@@ -99,6 +107,7 @@ def upsert_portfolio(
 def get_portfolio(
     user_id: str,
     db: Session = Depends(get_db),
+    _owner: str = Depends(require_owner),
 ) -> PortfolioResponse:
     """Return the latest portfolio + risk_profile for user_id, else 404."""
     user = db.get(User, user_id)

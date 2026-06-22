@@ -8,6 +8,7 @@ from fastapi.responses import StreamingResponse
 from langchain_openai import ChatOpenAI
 from sqlalchemy.orm import Session
 
+from app.api.deps import require_owner, require_user
 from app.core.config import get_settings
 from app.db.base import get_db
 from app.db.models import Report
@@ -39,7 +40,11 @@ _ASK_SYSTEM = (
     "/api/reports/history/{user_id}",
     summary="List a user's past reports (newest first)",
 )
-def list_reports(user_id: str, db: Session = Depends(get_db)) -> list[dict]:
+def list_reports(
+    user_id: str,
+    db: Session = Depends(get_db),
+    _owner: str = Depends(require_owner),
+) -> list[dict]:
     """Lightweight summaries (no full raw_result), newest first."""
     rows = (
         db.query(Report)
@@ -66,7 +71,11 @@ def list_reports(user_id: str, db: Session = Depends(get_db)) -> list[dict]:
     "/api/reports/series/{user_id}",
     summary="Portfolio value over time, oldest first (V12a)",
 )
-def report_series(user_id: str, db: Session = Depends(get_db)) -> list[dict]:
+def report_series(
+    user_id: str,
+    db: Session = Depends(get_db),
+    _owner: str = Depends(require_owner),
+) -> list[dict]:
     """Time-ordered value points for the history trend chart.
 
     Derived from each archived report's portfolio_valuation — no graph run, no
@@ -139,19 +148,30 @@ async def _ask_stream(report: dict, question: str):
     summary="Ask a grounded question about one archived report (SSE token stream)",
 )
 async def ask_report(
-    report_id: str, payload: AskRequest, db: Session = Depends(get_db)
+    report_id: str,
+    payload: AskRequest,
+    db: Session = Depends(get_db),
+    current_user: str = Depends(require_user),
 ) -> StreamingResponse:
     """Answer a follow-up grounded strictly in one archived report (V14).
 
     No graph re-run: load raw_result, build a grounded prompt, and stream the
     model's reply token-by-token. POST (not GET) because the question rides in
     the body, so the client consumes it with fetch()+reader, not EventSource.
+
+    Owner-only (V9): asking costs an LLM call, so unlike the read-only
+    capability URL it requires the report's owner.
     """
     r = db.get(Report, report_id)
     if r is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"No report found with id '{report_id}'.",
+        )
+    if r.user_id != current_user:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only ask about your own report.",
         )
     return StreamingResponse(
         _ask_stream(r.raw_result, payload.question),

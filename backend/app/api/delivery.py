@@ -32,6 +32,7 @@ from sqlalchemy.orm import Session
 from app.db.base import get_db
 from app.db.models import User, DeliveryPreference
 from app.schemas.delivery import DeliveryPreferenceRequest, DeliveryPreferenceResponse
+from app.api.deps import require_owner
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +54,7 @@ def _telegram_connected(user: User) -> bool:
 def get_delivery_preferences(
     user_id: str,
     db: Session = Depends(get_db),
+    _owner: str = Depends(require_owner),
 ) -> dict:
     """Return the stored preference (or null if never configured) alongside
     which channels are *usable* for this user.
@@ -91,6 +93,7 @@ def upsert_delivery_preferences(
     user_id: str,
     payload: DeliveryPreferenceRequest,
     db: Session = Depends(get_db),
+    _owner: str = Depends(require_owner),
 ) -> DeliveryPreference:
     """Upsert the preference row after checking the channel addresses exist.
 

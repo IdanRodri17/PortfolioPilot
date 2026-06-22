@@ -1,7 +1,8 @@
 """Memory transparency endpoints (V5) — read/wipe the PostgresStore."""
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
+from app.api.deps import require_owner
 from app.graph.persistence.store import store
 
 router = APIRouter()
@@ -12,7 +13,9 @@ def _ns(user_id: str) -> tuple[str, str]:
 
 
 @router.get("/api/memories/{user_id}", summary="List a user's stored memories")
-def list_memories(user_id: str) -> list[dict]:
+def list_memories(
+    user_id: str, _owner: str = Depends(require_owner)
+) -> list[dict]:
     """search() with no query = list mode (no semantic ranking). limit high
     enough to return everything for the demo."""
     items = store.search(_ns(user_id), limit=100)
@@ -29,7 +32,9 @@ def list_memories(user_id: str) -> list[dict]:
 
 
 @router.delete("/api/memories/{user_id}", summary="Wipe a user's stored memories")
-def delete_memories(user_id: str) -> dict:
+def delete_memories(
+    user_id: str, _owner: str = Depends(require_owner)
+) -> dict:
     """Delete every memory in the namespace (user control / demo reset)."""
     ns = _ns(user_id)
     keys = [it.key for it in store.search(ns, limit=100)]

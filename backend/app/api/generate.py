@@ -62,6 +62,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
+from app.api.deps import require_user, verify_token
 from app.db.base import get_db, SessionLocal
 from app.db.models import User, Report
 from app.schemas.report import AdviceReview, GradedCall, ReportDiff, SentimentFlip
@@ -398,6 +399,7 @@ async def _report_event_stream(
 )
 async def generate_report(
     user_id: str,
+    token: str,
     db: Session = Depends(get_db),
     graph=Depends(get_graph),
 ) -> StreamingResponse:
@@ -413,6 +415,14 @@ async def generate_report(
     GET (not POST) because the browser's native EventSource only supports
     GET; the portfolio is resolved server-side from user_id.
     """
+    # V9: EventSource can't set headers, so the token rides as a query param.
+    # Derive the caller from the verified token and enforce ownership.
+    if verify_token(token) != user_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only generate your own report.",
+        )
+
     user = db.get(User, user_id)
     if user is None or user.portfolio is None:
         raise HTTPException(
@@ -514,6 +524,7 @@ async def resume_graph(
     thread_id: str,
     payload: ResumeRequest,
     graph=Depends(get_graph),
+    current_user: str = Depends(require_user),
 ) -> StreamingResponse:
     """Resume the memory-review interrupt for thread_id, streaming the rest.
 

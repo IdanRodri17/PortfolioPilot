@@ -17,8 +17,9 @@ Versioning:
 
 import logging
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 
+from app.api.deps import require_owner
 from app.delivery.dispatcher import deliver_for_user, DeliveryError, dispatch_due
 
 logger = logging.getLogger(__name__)
@@ -30,7 +31,7 @@ router = APIRouter()
     "/api/deliveries/run-now/{user_id}",
     summary="Deliver a report to a user immediately (ignores schedule)",
 )
-async def run_now(user_id: str) -> dict:
+async def run_now(user_id: str, _owner: str = Depends(require_owner)) -> dict:
     """Produce and deliver one report for user_id across their enabled channels.
 
     Returns the dispatcher result ({report_id, channels} or {skipped}). A
@@ -52,5 +53,10 @@ async def run_now(user_id: str) -> dict:
 async def run_due_deliveries() -> dict:
     """The scheduled trigger — hit by the in-process APScheduler tick (V7c-2b)
     or an external cron every ~10 min. Idempotent within a period via
-    last_sent_at, so over-frequent calls are harmless."""
+    last_sent_at, so over-frequent calls are harmless.
+
+    Intentionally left unauthenticated (V9): it is not user-scoped and the
+    in-process scheduler calls dispatch_due() directly, not over HTTP. In a real
+    deployment this manual trigger would be protected at the network/proxy layer.
+    """
     return await dispatch_due()
