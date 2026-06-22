@@ -93,7 +93,7 @@ The project is built **one version at a time**, each concluded with a Git tag, a
 | **V6.5** | Crypto (deferred) | CoinGecko crypto holdings + the dormant `max_crypto_pct` threshold — deferred, not yet shipped | 📋 Planned |
 | **V7** | Multi-channel delivery | Scheduled Telegram + email digests, APScheduler dispatcher, timezone-aware `DeliveryPreference`, idempotent `last_sent_at` dedupe | ✅ Shipped |
 | **V8** | Authentication | Auth.js (NextAuth v5) credential auth, login page, session-derived `user_id`, middleware route protection | ✅ Shipped |
-| **V9** | Backend JWT verification | FastAPI dependency that verifies the Auth.js session token and derives `user_id` server-side — closes the trusted-query-param gap | 🚧 In progress |
+| **V9** | Backend JWT verification | FastAPI dependency that verifies a session-derived bearer token and derives `user_id` server-side — closes the trusted-query-param gap | ✅ Shipped |
 
 ---
 
@@ -350,7 +350,7 @@ A few deliberate choices that shape the codebase:
 
 The next wave makes the AI **visibly smarter** and the app **publishable** — full spec in `PortfolioPilot_Upgrades_BuildSpec.md`.
 
-- **V9** 🚧 — Backend JWT verification: a FastAPI dependency that verifies the Auth.js session token and derives `user_id` server-side, closing the trusted-query-param gap (the default-closed baseline the demo/share routes later opt out of).
+- **V9** ✅ — Backend JWT verification: a FastAPI dependency that verifies a session-derived bearer token and derives `user_id` server-side, closing the trusted-query-param gap (the default-closed baseline the demo/share routes opt out of).
 - **V10** 📋 — Value-weighted allocation donut (Recharts) on the dashboard, plus inline ticker validation (company name + live price) in the portfolio editor.
 - **V11** 📋 — A `macro_context_agent` that analyzes the portfolio as a whole for sector concentration and surfaces a diversification score.
 - **V12** 📋 — Portfolio value trend chart over time, and a "since your last report" diff strip (valuation delta, sentiment flips, resolved/new risk violations).

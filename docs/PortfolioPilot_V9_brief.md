@@ -5,10 +5,10 @@
 > query/path param. Sequenced after V10–V14 by request, but it is the
 > default-closed baseline the V15 demo/share routes will explicitly opt out of.
 
-**Status:** Shipped (code complete; backend enforcement verified live). The `v9`
-tag is **pending the live browser smoke test** — confirming the logged-in app
-still works end to end now that every user-data call must carry a token. The
-rejection paths were verified live (see below). Code is committed on `main`.
+**Status:** Shipped. Tagged `v9` on `main`. The logged-in app was confirmed
+working end to end with token auth (dashboard, generate, chat, history,
+settings), and the `curl ...?user_id=anything` bypass is closed (verified live:
+401/422).
 
 **Headline:** the backend no longer trusts the request. Every user-scoped
 endpoint derives the user from a verified token, so a raw
@@ -32,7 +32,7 @@ shared `AUTH_SECRET`; the backend verifies it with PyJWT. Decoupled and standard
   backend loaded the shared `AUTH_SECRET`.
 - **Frontend:** `npx tsc --noEmit` + `eslint` clean.
 
-**Smoke tests — pending your live run (browser):**
+**Smoke tests — confirmed live (browser):**
 
 - Logged in, the dashboard/portfolio/history/settings/memory pages all still
   load and act (the token rides along automatically); **Generate report** works;
@@ -107,8 +107,8 @@ stays a capability URL; `run-due-deliveries` stays open (non-user cron trigger).
 
 ## Explicitly deferred
 
-- **Live browser confirmation + `v9` tag**, then flip the README build-status
-  row from "🚧 In progress" to "✅ Shipped".
+- **Push the `v9` tag.** Created locally after the live smoke test passed;
+  `git push origin v9` to publish it.
 - **Resume ownership.** resume-graph requires a valid token but checks only
   authentication, not that the thread_id's report belongs to the caller
   (thread_id is an unguessable uuid). A full owner check would load the report.
@@ -170,7 +170,7 @@ feat(v9): backend JWT auth dependency
 feat(v9): mint and attach a bearer API token from the frontend
 feat(v9): enforce token auth on the user-data endpoints
 docs(v9): add V9 implementation brief
-(tag) v9  — pending live browser smoke test
+(tag) v9
 ```
 
-To reconstruct the V9 baseline at any point once tagged: `git checkout v9`.
+To reconstruct the V9 baseline at any point: `git checkout v9`.
