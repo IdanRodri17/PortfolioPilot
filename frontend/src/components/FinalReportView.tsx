@@ -22,6 +22,7 @@ import type {
   RebalancingRecommendation,
   Sentiment,
   RecommendationAction,
+  SectorConcentration,
 } from "@/lib/types";
 import { AllocationDonut } from "@/components/AllocationDonut";
 
@@ -97,6 +98,93 @@ function RecommendationRow({ rec }: { rec: RebalancingRecommendation }) {
   );
 }
 
+const CONCENTRATION_META: Record<
+  SectorConcentration["concentration"],
+  { label: string; chip: string }
+> = {
+  high: {
+    label: "High",
+    chip: "bg-rose-500/10 text-rose-300 ring-1 ring-rose-500/20",
+  },
+  moderate: {
+    label: "Moderate",
+    chip: "bg-amber-500/10 text-amber-300 ring-1 ring-amber-500/20",
+  },
+  low: {
+    label: "Low",
+    chip: "bg-emerald-500/10 text-emerald-300 ring-1 ring-emerald-500/20",
+  },
+  unknown: {
+    label: "Unknown",
+    chip: "bg-slate-500/10 text-slate-300 ring-1 ring-slate-500/20",
+  },
+};
+
+// Same slate/emerald language as the allocation donut — no rainbow.
+const SECTOR_COLORS = [
+  "#10b981",
+  "#34d399",
+  "#6ee7b7",
+  "#a7f3d0",
+  "#5eead4",
+  "#64748b",
+  "#94a3b8",
+  "#cbd5e1",
+];
+
+function ConcentrationSection({ data }: { data: SectorConcentration }) {
+  const meta = CONCENTRATION_META[data.concentration] ?? CONCENTRATION_META.unknown;
+  const scorePct = Math.round(data.diversification_score * 100);
+  return (
+    <section className="rounded-xl border border-slate-800 bg-slate-900/60 p-5">
+      <div className="mb-3 flex items-center justify-between">
+        <h2 className="text-sm font-medium tracking-wide text-slate-300">
+          Sector concentration
+        </h2>
+        <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${meta.chip}`}>
+          {meta.label}
+        </span>
+      </div>
+
+      {/* Stacked breakdown bar */}
+      <div className="flex h-3 w-full overflow-hidden rounded-full bg-slate-800">
+        {data.sectors.map((s, i) => (
+          <div
+            key={s.sector}
+            className="h-full"
+            style={{
+              width: `${s.pct}%`,
+              backgroundColor: SECTOR_COLORS[i % SECTOR_COLORS.length],
+            }}
+            title={`${s.sector} ${s.pct}%`}
+          />
+        ))}
+      </div>
+
+      {/* Legend */}
+      <ul className="mt-3 grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+        {data.sectors.map((s, i) => (
+          <li key={s.sector} className="flex items-center gap-2 text-sm">
+            <span
+              className="h-2.5 w-2.5 shrink-0 rounded-sm"
+              style={{ backgroundColor: SECTOR_COLORS[i % SECTOR_COLORS.length] }}
+            />
+            <span className="text-slate-300">{s.sector}</span>
+            <span className="ml-auto font-mono text-xs text-slate-500">{s.pct}%</span>
+          </li>
+        ))}
+      </ul>
+
+      <p className="mt-3 text-sm leading-relaxed text-slate-400">{data.note}</p>
+      <p className="mt-1 text-xs text-slate-500">
+        Diversification score{" "}
+        <span className="font-mono text-slate-400">{scorePct}/100</span> ·
+        educational, not financial advice.
+      </p>
+    </section>
+  );
+}
+
 export function FinalReportView({ report }: { report: FinalReport }) {
   const val = report.portfolio_valuation;
   const changePositive = val.change_24h_percent >= 0;
@@ -154,6 +242,12 @@ export function FinalReportView({ report }: { report: FinalReport }) {
           <AllocationDonut composition={report.portfolio_composition ?? []} />
         </div>
       </section>
+
+      {/* Sector concentration (V11) */}
+      {report.sector_concentration &&
+        report.sector_concentration.sectors.length > 0 && (
+          <ConcentrationSection data={report.sector_concentration} />
+        )}
 
       {/* Market insights */}
       <section className="rounded-xl border border-slate-800 bg-slate-900/60 p-5">

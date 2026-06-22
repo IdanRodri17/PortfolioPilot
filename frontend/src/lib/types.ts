@@ -65,6 +65,19 @@ export interface AssetAllocation {
   value_usd: number; // this asset's value in USD
 }
 
+export interface SectorAllocation {
+  sector: string;
+  pct: number; // sector share of total portfolio value, 0..100
+}
+
+export interface SectorConcentration {
+  sectors: SectorAllocation[]; // largest first
+  dominant_sector: string | null;
+  concentration: "high" | "moderate" | "low" | "unknown";
+  diversification_score: number; // 0..1, higher = more diversified
+  note: string;
+}
+
 export interface FinalReport {
   portfolio_valuation: PortfolioValuation;
   market_insights: MarketInsight[];
@@ -74,6 +87,8 @@ export interface FinalReport {
   // Value-weighted allocation (V10a). Optional so reports archived before
   // V10a (which lack the field) still type-check when replayed from history.
   portfolio_composition?: AssetAllocation[];
+  // Value-weighted sector concentration (V11). Optional/null for pre-V11 reports.
+  sector_concentration?: SectorConcentration | null;
 }
 
 // ─── SSE event taxonomy (mirrors api/generate.py _format_sse calls) ───

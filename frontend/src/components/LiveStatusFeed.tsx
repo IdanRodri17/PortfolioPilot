@@ -40,6 +40,8 @@ function labelFor(node: string): string {
       return "Sentiment";
     case "risk_agent":
       return "Risk analysis";
+    case "macro_context_agent":
+      return "Sector concentration";
     case "synthesizer":
       return "Synthesizing report";
     case "memory_loader":
