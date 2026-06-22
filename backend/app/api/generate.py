@@ -63,6 +63,7 @@ from sqlalchemy.orm import Session
 
 from app.db.base import get_db, SessionLocal
 from app.db.models import User, Report
+from app.schemas.report import ReportDiff, SentimentFlip
 import app.graph.builder as graph_builder
 
 logger = logging.getLogger(__name__)
@@ -125,13 +126,59 @@ def _persist_report(
         db.close()
 
 
-async def _report_event_stream(graph, initial_state: dict, report_id: str):
+def _compute_report_diff(prev: dict | None, curr: dict) -> dict:
+    """Diff the new report against the user's previous one (V12b).
+
+    Deterministic, no LLM. Risk violations aren't persisted on the report, so
+    the actionable diff is over rebalancing_recommendations (keyed
+    "action asset") — the surfaced form of those violations. Returns a
+    ReportDiff as a JSON-ready dict.
+    """
+    if not prev:
+        return ReportDiff(first_report=True).model_dump(mode="json")
+
+    prev_total = (prev.get("portfolio_valuation") or {}).get("total_usd")
+    curr_total = (curr.get("portfolio_valuation") or {}).get("total_usd")
+    delta = None
+    if prev_total and curr_total is not None:  # prev_total truthy => nonzero
+        delta = round((curr_total - prev_total) / prev_total * 100, 2)
+
+    prev_sent = {i["asset"]: i["sentiment"] for i in prev.get("market_insights", [])}
+    curr_sent = {i["asset"]: i["sentiment"] for i in curr.get("market_insights", [])}
+    flips = [
+        SentimentFlip(asset=asset, previous=prev_sent[asset], current=sentiment)
+        for asset, sentiment in curr_sent.items()
+        if asset in prev_sent and prev_sent[asset] != sentiment
+    ]
+
+    def _rec_keys(report: dict) -> set[str]:
+        return {
+            f"{r['action']} {r['asset']}"
+            for r in report.get("rebalancing_recommendations", [])
+        }
+
+    prev_recs = _rec_keys(prev)
+    curr_recs = _rec_keys(curr)
+
+    return ReportDiff(
+        first_report=False,
+        valuation_delta_pct=delta,
+        sentiment_flips=flips,
+        recommendations_new=sorted(curr_recs - prev_recs),
+        recommendations_resolved=sorted(prev_recs - curr_recs),
+    ).model_dump(mode="json")
+
+
+async def _report_event_stream(
+    graph, initial_state: dict, report_id: str, prev_report: dict | None
+):
     """Map the astream_events firehose to SSE events.
 
     Yields status events per node, then report_complete (FinalReport +
-    report_id). If the graph paused at human_review's interrupt (V6), also
-    yields human_input_required so the client can open the memory-approval
-    modal and resume via POST /api/resume-graph.
+    report_id), then report_diff (V12b: what changed vs prev_report). If the
+    graph paused at human_review's interrupt (V6), also yields
+    human_input_required so the client can open the memory-approval modal and
+    resume via POST /api/resume-graph.
 
     config carries the thread_id: the graph is compiled WITH a checkpointer
     now, so every run must pass {"configurable": {"thread_id": ...}}. We reuse
@@ -215,6 +262,9 @@ async def _report_event_stream(graph, initial_state: dict, report_id: str):
     # is never held hostage to approval (design decision).
     yield _format_sse("report_complete", {**payload, "report_id": report_id})
 
+    # V12b: deterministic "what changed since your last report" diff (no LLM).
+    yield _format_sse("report_diff", _compute_report_diff(prev_report, payload))
+
     # V6: did the run pause at human_review's interrupt? Surface the proposals.
     try:
         snapshot = await graph.aget_state(config)
@@ -287,8 +337,18 @@ async def generate_report(
     # and returned to the client in report_complete.
     report_id = str(uuid4())
 
+    # V12b: the most recent prior report (if any) for the since-last-report diff.
+    # Fetched at the boundary with the request session, before the run starts.
+    prev = (
+        db.query(Report)
+        .filter(Report.user_id == user_id)
+        .order_by(Report.generated_at.desc())
+        .first()
+    )
+    prev_report = prev.raw_result if prev else None
+
     return StreamingResponse(
-        _report_event_stream(graph, initial_state, report_id),
+        _report_event_stream(graph, initial_state, report_id, prev_report),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",

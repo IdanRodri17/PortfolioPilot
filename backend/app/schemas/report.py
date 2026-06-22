@@ -184,3 +184,44 @@ class FinalReport(ReportBody):
             "for reports archived before V11."
         ),
     )
+
+
+class SentimentFlip(BaseModel):
+    """One asset's sentiment change between two consecutive reports (V12b)."""
+
+    asset: str = Field(description="The asset whose sentiment changed.")
+    previous: Literal["Positive", "Neutral", "Negative"] = Field(
+        description="Sentiment in the prior report."
+    )
+    current: Literal["Positive", "Neutral", "Negative"] = Field(
+        description="Sentiment in the new report."
+    )
+
+
+class ReportDiff(BaseModel):
+    """What changed since the user's previous report (V12b).
+
+    Computed deterministically at the API boundary by diffing the two archived
+    report payloads — no LLM. Note: risk violations are not persisted on the
+    report, so the actionable diff is over the rebalancing recommendations
+    (keyed "action asset"), which are the surfaced form of those violations.
+    """
+
+    first_report: bool = Field(
+        default=False, description="True when there is no prior report to compare."
+    )
+    valuation_delta_pct: float | None = Field(
+        default=None,
+        description="Percent change in total_usd vs the prior report; None if not computable.",
+    )
+    sentiment_flips: List[SentimentFlip] = Field(
+        default_factory=list, description="Per-asset sentiment changes."
+    )
+    recommendations_new: List[str] = Field(
+        default_factory=list,
+        description="Recommendations present now but not in the prior report (e.g. 'reduce AAPL').",
+    )
+    recommendations_resolved: List[str] = Field(
+        default_factory=list,
+        description="Recommendations in the prior report but no longer present.",
+    )
