@@ -6,11 +6,10 @@
 > upgrade spec, and what was deferred — so any subsequent Claude conversation
 > picks up with full context.
 
-**Status:** Shipped (code complete; statically verified, graph compiles, the
-container hot-reloaded cleanly). The `v11` tag is **pending the live
-end-to-end smoke test** (a real streamed report showing the concentration
-callout + the narrative naming the dominant sector), which needs the running
-stack + OpenAI/Tavily keys. Code is committed on `main`.
+**Status:** Shipped. Tagged `v11` on `main`. The live end-to-end smoke test
+passed: a tech-heavy report showed the "Sector concentration" row in the live
+feed, the concentration section (Technology dominant, "High" chip, breakdown bar
++ diversification score), and a narrative that named the tech concentration.
 
 **Headline:** the graph gained its first genuinely new analyst since V3 — a
 deterministic `macro_context_agent` that looks at the portfolio *as a whole* and
@@ -40,7 +39,7 @@ diversification score to the report.
   round-trips and a pre-V11 report (no field) still deserializes (→ `None`).
 - **Prompt 8 (frontend):** `npx tsc --noEmit` and `eslint` clean.
 
-**Smoke tests — pending your live run (need the stack + keys):**
+**Smoke tests — confirmed live (via the Docker stack):**
 
 - Generate a report for a tech-heavy portfolio (the curated AAPL/MSFT/NVDA/
   GOOGL/TSLA tells this story): the live feed shows **"Sector concentration"**
@@ -134,9 +133,8 @@ Palette stays in the slate/emerald language. Hidden when there are no sectors.
 
 ## Explicitly deferred (build in noted version)
 
-- **Live e2e confirmation + `v11` tag.** Generate a tech-heavy report; confirm
-  the concentration section, the live-feed row, and the narrative naming the
-  sector. Then `git tag v11`.
+- **Push the `v11` tag.** Created locally after the live smoke test passed;
+  `git push origin v11` to publish it.
 - **Real return correlation (V11.5 / V16).** A 30-day-returns correlation matrix
   via `yfinance` history is a truer concentration signal than sector buckets but
   costs one history call per symbol — gate it behind a follow-up if the sector
@@ -202,7 +200,7 @@ feat(v11): fan macro_context_agent into the graph and status feed
 feat(v11): weave concentration into synthesis and attach to the report
 feat(v11): render sector concentration breakdown in the report
 docs(v11): add V11 implementation brief
-(tag) v11  — pending live e2e smoke test
+(tag) v11
 ```
 
-To reconstruct the V11 baseline at any point once tagged: `git checkout v11`.
+To reconstruct the V11 baseline at any point: `git checkout v11`.
