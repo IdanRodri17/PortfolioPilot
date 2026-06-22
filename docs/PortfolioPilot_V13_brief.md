@@ -19,7 +19,9 @@ no LLM.
 
 - **Grade rules:** reduce + price fell → `good`; reduce + rose → `poor`;
   increase + rose → `good`; increase + fell → `poor`; hold + small move →
-  `good`; hold + large move → `neutral`.
+  `good`; hold + large move → `neutral`. A directional move under ~0.5% (incl.
+  same-day grading, where prior and current share a close) → `neutral` — too
+  close to call, never a miss.
 - **`_compute_advice_review`:** no prior report → "No prior recommendations to
   grade yet."; a prior report with calls grades each one (right `pct_move_since`
   and grade), tallies a clean summary ("3 good"), and marks an asset with no

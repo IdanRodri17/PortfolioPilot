@@ -171,14 +171,25 @@ def _compute_report_diff(prev: dict | None, curr: dict) -> dict:
     ).model_dump(mode="json")
 
 
+# A directional call needs a real move to be judged a win or a miss; below this
+# the move is "too close to call" → neutral. This also covers same-day grading
+# (prior report and now share a close → 0.00% move), which must not read as a
+# miss.
+_FLAT_MOVE_PCT = 0.5
+# A hold is rewarded for staying within this band; beyond it the hold is neutral.
+_HOLD_FLAT_PCT = 5.0
+
+
 def _grade_call(action: str, pct_move: float) -> str:
     """Grade one prior call from the asset's % move since it was made."""
+    if action == "hold":
+        # Rewarded for staying ~flat; a large move is neutral, not a miss.
+        return "good" if abs(pct_move) < _HOLD_FLAT_PCT else "neutral"
+    if abs(pct_move) < _FLAT_MOVE_PCT:
+        return "neutral"  # too small a move to call directionally
     if action == "reduce":
         return "good" if pct_move < 0 else "poor"  # reduce + fell = good call
-    if action == "increase":
-        return "good" if pct_move > 0 else "poor"  # increase + rose = good call
-    # hold: rewarded for staying ~flat; a large move is neutral, not a miss.
-    return "good" if abs(pct_move) < 5 else "neutral"
+    return "good" if pct_move > 0 else "poor"  # increase + rose = good call
 
 
 def _compute_advice_review(prev: dict | None, prev_at) -> dict:
