@@ -7,12 +7,11 @@
 > full context. (V9 — backend JWT — is intentionally sequenced later, just
 > before the demo/share wave; see the Prelude note in the BuildSpec.)
 
-**Status:** Shipped (code complete; statically verified). The `v10` tag is
-**pending the live end-to-end smoke test**: per the standing rule "no tag
-without a passing end-to-end check", and the live checks (a real streamed
-report rendering the donut; the editor hitting yfinance through
-`/api/ticker/validate`) need the running stack + OpenAI/Tavily keys, which were
-not available in the build session. Code is committed on `main`.
+**Status:** Shipped. Tagged `v10` on `main`. The live end-to-end smoke test
+passed via the Docker stack: the portfolio editor's inline ticker validation
+(name + price, blocked save on a typo, one request per settled symbol) and the
+dashboard allocation donut (value-weighted slices, center total, legend) were
+both confirmed in the browser.
 
 **Headline:** the value-weighted composition `risk_agent` already computed —
 previously discarded after every run — now rides on the report payload and
@@ -41,7 +40,7 @@ and the synthesizer one post-LLM assembly step, nothing else changed shape.
   `react-hooks/refs` rule — the validations ref is synced in an effect, not
   during render).
 
-**Smoke tests — pending your live run (need the stack + keys):**
+**Smoke tests — confirmed live (via the Docker stack):**
 
 - Generate a report on the dashboard for a user with a portfolio → the donut
   appears in the valuation section, slices sized by value (largest first),
@@ -142,9 +141,8 @@ validations are read in the debounce via a ref synced in an effect.
 
 ## Explicitly deferred (build in noted version)
 
-- **Live e2e confirmation + `v10` tag.** Run the two pending smoke tests above,
-  then `git tag v10` (and push). If the donut or validation misbehaves, fix
-  forward before tagging.
+- **Push the `v10` tag.** Created locally after the live smoke test passed;
+  `git push origin v10` to publish it.
 - **Reconcile the two portfolio totals.** The valuation header uses the LLM's
   `portfolio_valuation.total_usd`; the donut center uses the deterministic
   risk_agent sum. A later pass could make the header authoritative-deterministic
@@ -212,7 +210,7 @@ feat(v10a): render value-weighted allocation donut on the dashboard
 feat(v10b): add cached ticker validation endpoint
 feat(v10b): inline ticker validation in the portfolio editor
 docs(v10): add V10 implementation brief
-(tag) v10  — pending live e2e smoke test
+(tag) v10
 ```
 
-To reconstruct the V10 baseline at any point once tagged: `git checkout v10`.
+To reconstruct the V10 baseline at any point: `git checkout v10`.
