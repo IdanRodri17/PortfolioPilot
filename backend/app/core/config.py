@@ -57,6 +57,11 @@ class Settings(BaseSettings):
     from_email: str = "PortfolioPilot <onboarding@resend.dev>"
     public_app_base_url: str = "http://localhost:3000"
     due_check_interval_minutes: int = 10
+    # V9: shared secret for verifying the frontend-minted API token (HS256) —
+    # the SAME value as the frontend's AUTH_SECRET. Optional so the app still
+    # boots without it; the auth dependency 500s if a guarded route is hit while
+    # it's unset (a deployment error, surfaced loudly).
+    auth_secret: str | None = None
 
 
 @lru_cache
