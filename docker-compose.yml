@@ -1,6 +1,12 @@
-# PortfolioPilot infra. V2: postgres only.
-# V8 will add a `backend` service here (currently the backend runs on the
-# host via `uvicorn` so reload is fast during development).
+# PortfolioPilot — full local stack.
+#
+# `docker compose up` brings up Postgres + backend + frontend together. Both
+# app services run their dev servers with hot reload: the source is bind-mounted
+# and file-watch polling is enabled so edits on the host are picked up inside
+# the Linux containers (needed for Docker Desktop on Windows/macOS).
+#
+# Day-to-day: just `docker compose up`. After changing dependencies
+# (requirements.txt / package.json) rebuild with `docker compose up --build`.
 services:
   postgres:
     image: pgvector/pgvector:pg16
@@ -19,6 +25,58 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+
+  backend:
+    build: ./backend
+    container_name: portfoliopilot-backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    # OPENAI_API_KEY / TAVILY_API_KEY / etc. come from backend/.env. The values
+    # set under `environment:` below override anything in that file.
+    env_file:
+      - ./backend/.env
+    environment:
+      # Inside the compose network Postgres is reached by service name, not
+      # localhost — this overrides the host-oriented DATABASE_URL in .env.
+      DATABASE_URL: postgresql+psycopg://portfoliopilot:portfoliopilot@postgres:5432/portfoliopilot
+      # uvicorn --reload uses watchfiles; force polling so edits on a
+      # Windows/macOS host bind mount are detected inside the container.
+      WATCHFILES_FORCE_POLLING: "true"
+    volumes:
+      # Bind-mount only the app package for hot reload (keeps host .venv/.env
+      # out of the container; deps live in the image, config comes from env).
+      - ./backend/app:/app/app
+    ports:
+      - "8000:8000"
+
+  frontend:
+    build: ./frontend
+    container_name: portfoliopilot-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    # AUTH_SECRET + NEXT_PUBLIC_API_BASE_URL come from frontend/.env.local.
+    env_file:
+      - ./frontend/.env.local
+    environment:
+      # The browser uses NEXT_PUBLIC_API_BASE_URL (localhost:8000); the
+      # server-side NextAuth authorize() must reach the backend by service name.
+      INTERNAL_API_BASE_URL: http://backend:8000
+      # Required by Auth.js v5 when self-hosting behind a proxy/container.
+      AUTH_TRUST_HOST: "true"
+      # next dev file-watching over a host bind mount needs polling.
+      WATCHPACK_POLLING: "true"
+      CHOKIDAR_USEPOLLING: "true"
+    volumes:
+      - ./frontend:/app
+      # Anonymous volumes so the container's own (Linux) install is used, not
+      # the host's node_modules / build cache.
+      - /app/node_modules
+      - /app/.next
+    ports:
+      - "3000:3000"
 
 volumes:
   portfoliopilot_pg:

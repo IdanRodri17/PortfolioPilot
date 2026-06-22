@@ -25,6 +25,11 @@ import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL;
+// authorize() runs server-side. In Docker the backend is not reachable on
+// localhost, so allow an internal base-URL override (compose sets this to
+// http://backend:8000). On host dev it's unset and falls back to the public
+// localhost base, so nothing changes outside containers.
+const SERVER_API_BASE = process.env.INTERNAL_API_BASE_URL ?? API_BASE;
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   session: { strategy: "jwt" },
@@ -55,7 +60,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         if (!email || !password) return null;
 
         try {
-          const res = await fetch(`${API_BASE}/api/auth/verify`, {
+          const res = await fetch(`${SERVER_API_BASE}/api/auth/verify`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ email, password }),

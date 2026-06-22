@@ -1,0 +1,6 @@
+# Use the image's own (Linux) node_modules, not the host's; never bake secrets.
+node_modules
+.next
+npm-debug.log*
+.env*
+.git
