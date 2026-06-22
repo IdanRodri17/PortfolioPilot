@@ -43,6 +43,7 @@ export const config = {
   matcher: [
     // V15a: /demo is a public guest route; /api/token self-guards (returns 401
     // without a session) so it's excluded too.
-    "/((?!api/auth|api/token|login|demo|_next/static|_next/image|favicon.ico).*)",
+    // V15b: /r/* are public read-only shared reports.
+    "/((?!api/auth|api/token|login|demo|r/|_next/static|_next/image|favicon.ico).*)",
   ],
 };

@@ -16,6 +16,7 @@
  * feed's in-flight state, so it never appears here where nothing is running.
  */
 
+import { useState } from "react";
 import type {
   FinalReport,
   MarketInsight,
@@ -201,6 +202,20 @@ export function FinalReportView({
   adviceReview?: AdviceReview | null;
   reportId?: string | null;
 }) {
+  const [copied, setCopied] = useState(false);
+
+  function shareLink() {
+    if (!reportId) return;
+    const url = `${window.location.origin}/r/${reportId}`;
+    void navigator.clipboard?.writeText(url).then(
+      () => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      },
+      () => {},
+    );
+  }
+
   const val = report.portfolio_valuation;
   const changePositive = val.change_24h_percent >= 0;
   const conf = confidenceMeta(report.confidence);
@@ -216,6 +231,24 @@ export function FinalReportView({
 
   return (
     <div className="space-y-5">
+      {/* Share / export (V15b) — hidden in the printed PDF */}
+      <div className="no-print flex items-center justify-end gap-2">
+        {reportId && (
+          <button
+            onClick={shareLink}
+            className="rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-300 transition-colors hover:bg-slate-800"
+          >
+            {copied ? "Link copied" : "Share"}
+          </button>
+        )}
+        <button
+          onClick={() => window.print()}
+          className="rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-300 transition-colors hover:bg-slate-800"
+        >
+          Export PDF
+        </button>
+      </div>
+
       {/* Since-last-report diff strip (V12b) — only on a freshly streamed report */}
       {diff && <SinceLastReport diff={diff} />}
 
