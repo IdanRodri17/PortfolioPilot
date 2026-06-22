@@ -33,6 +33,7 @@ Versioning:
     V5: + long_term_memory.
     V6: + guardrail_passed, guardrail_feedback, retry_count,
           proposed_memories, approved_memories, new_memories.
+    V11: + macro_analysis (sector concentration, single writer).
     TypedDict fields are additive — growing the schema per version never
     breaks earlier code.
 """
@@ -78,6 +79,12 @@ class PortfolioState(TypedDict, total=False):
     # Single writer, no reducer needed. Type stays loose (dict) until
     # Step 4 lands a Pydantic RiskAnalysis schema if it earns its keep.
     risk_analysis: Dict[str, Any]
+
+    # Populated by macro_context_agent (V11). Like risk_agent it runs ONCE over
+    # the whole portfolio, fanned out in parallel — so it's a single writer with
+    # no reducer. Value-weighted sector concentration: {sector_breakdown,
+    # dominant_sector, concentration, diversification_score, note}.
+    macro_analysis: Dict[str, Any]
 
     # ─── Populated by synthesizer ───
     final_report: FinalReport

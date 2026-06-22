@@ -113,3 +113,27 @@ def lookup_symbol(symbol: str) -> dict | None:
     if not symbol:
         return None
     return _lookup_symbol_cached(symbol)
+
+
+@lru_cache(maxsize=512)
+def _get_sector_cached(symbol: str) -> str:
+    """Cached inner sector lookup; `symbol` must already be normalized."""
+    try:
+        sector = yf.Ticker(symbol).info.get("sector")
+    except Exception:  # network, rate-limit, or partial/empty .info dict
+        return "Uncategorized"
+    return sector or "Uncategorized"
+
+
+def get_sector(symbol: str) -> str:
+    """Return an asset's sector via yfinance `.info`, cached per symbol.
+
+    Never raises: a missing sector, an unknown ticker, or any fetch failure all
+    degrade to "Uncategorized" (same posture as a failed news fetch), so one
+    bad lookup never fails the macro branch. `.info` is slow and
+    rate-limit-prone, hence the cache.
+    """
+    symbol = symbol.strip().upper()
+    if not symbol:
+        return "Uncategorized"
+    return _get_sector_cached(symbol)
