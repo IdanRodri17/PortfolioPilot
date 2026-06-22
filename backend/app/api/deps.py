@@ -24,6 +24,10 @@ from app.core.config import get_settings
 # FastAPI's default 403 when the Authorization header is absent.
 _bearer = HTTPBearer(auto_error=False)
 
+# The curated read-only guest user (V15a). Specific read/generate endpoints
+# explicitly open up for it; everything else stays default-closed.
+DEMO_USER_ID = "idan_demo"
+
 
 def verify_token(raw_token: str) -> str:
     """Verify an HS256 token against AUTH_SECRET and return its `sub` (user_id).
@@ -77,6 +81,26 @@ def require_owner(user_id: str, current_user: str = Depends(require_user)) -> st
     `Depends(require_owner)` to enforce that the caller acts only on their own
     data. 403 on a mismatch.
     """
+    if user_id != current_user:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only access your own data.",
+        )
+    return current_user
+
+
+def require_owner_or_demo(
+    user_id: str,
+    credentials: HTTPAuthorizationCredentials | None = Depends(_bearer),
+) -> str:
+    """Like require_owner, but the curated demo user is publicly readable (V15a).
+
+    Used on the read endpoints the guest demo needs. The demo user requires no
+    token; any other user_id must present a token that matches it.
+    """
+    if user_id == DEMO_USER_ID:
+        return user_id
+    current_user = verify_token(credentials.credentials if credentials else "")
     if user_id != current_user:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,

@@ -23,7 +23,7 @@ Versioning:
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.api.deps import require_owner, require_user
+from app.api.deps import require_owner_or_demo, require_user
 from app.db.base import get_db
 from app.db.models import User, Portfolio
 from app.schemas.portfolio import PortfolioRequest, PortfolioResponse
@@ -107,9 +107,12 @@ def upsert_portfolio(
 def get_portfolio(
     user_id: str,
     db: Session = Depends(get_db),
-    _owner: str = Depends(require_owner),
+    _owner: str = Depends(require_owner_or_demo),
 ) -> PortfolioResponse:
-    """Return the latest portfolio + risk_profile for user_id, else 404."""
+    """Return the latest portfolio + risk_profile for user_id, else 404.
+
+    Demo-readable (V15a): the curated demo user is public; others need a token.
+    """
     user = db.get(User, user_id)
     if user is None or user.portfolio is None:
         raise HTTPException(

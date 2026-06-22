@@ -62,7 +62,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
-from app.api.deps import require_user, verify_token
+from app.api.deps import DEMO_USER_ID, require_user, verify_token
 from app.db.base import get_db, SessionLocal
 from app.db.models import User, Report
 from app.schemas.report import AdviceReview, GradedCall, ReportDiff, SentimentFlip
@@ -399,7 +399,7 @@ async def _report_event_stream(
 )
 async def generate_report(
     user_id: str,
-    token: str,
+    token: str = "",
     db: Session = Depends(get_db),
     graph=Depends(get_graph),
 ) -> StreamingResponse:
@@ -417,7 +417,8 @@ async def generate_report(
     """
     # V9: EventSource can't set headers, so the token rides as a query param.
     # Derive the caller from the verified token and enforce ownership.
-    if verify_token(token) != user_id:
+    # V15a: the curated demo user may generate without a token (read-only guest).
+    if user_id != DEMO_USER_ID and verify_token(token) != user_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You can only generate your own report.",
