@@ -2,25 +2,121 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { getReportsHistory, getReport } from "@/lib/api";
-import type { ReportSummary, ReportDetail } from "@/lib/types";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  CartesianGrid,
+  ResponsiveContainer,
+} from "recharts";
+import { getReportsHistory, getReport, getReportSeries } from "@/lib/api";
+import type {
+  ReportSummary,
+  ReportDetail,
+  ReportSeriesPoint,
+} from "@/lib/types";
 import { FinalReportView } from "@/components/FinalReportView";
 
 import { useUserId } from "@/lib/useUserId";
 const usd = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
+const usdCompact = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "USD",
+  notation: "compact",
+  maximumFractionDigits: 1,
+});
+
+interface TrendPoint {
+  label: string;
+  total: number;
+}
+
+interface TrendTooltipProps {
+  active?: boolean;
+  payload?: { payload: TrendPoint }[];
+}
+
+function TrendTooltip({ active, payload }: TrendTooltipProps) {
+  if (!active || !payload?.length) return null;
+  const point = payload[0].payload;
+  return (
+    <div className="rounded-md border border-slate-700 bg-slate-900/95 px-3 py-2 text-xs shadow-lg">
+      <p className="text-slate-400">{point.label}</p>
+      <p className="font-mono text-slate-200">{usd.format(point.total)}</p>
+    </div>
+  );
+}
+
+function ValueTrendChart({ series }: { series: ReportSeriesPoint[] }) {
+  // A line needs at least two points to read as a trend.
+  if (series.length < 2) return null;
+  const data: TrendPoint[] = series.map((p) => ({
+    label: new Date(p.generated_at).toLocaleDateString(undefined, {
+      month: "short",
+      day: "numeric",
+    }),
+    total: p.total_usd,
+  }));
+  return (
+    <section className="mt-8 rounded-xl border border-slate-800 bg-slate-900/60 p-5">
+      <h2 className="mb-4 text-sm font-medium tracking-wide text-slate-300">
+        Portfolio value over time
+      </h2>
+      <ResponsiveContainer width="100%" height={220}>
+        <LineChart data={data} margin={{ top: 5, right: 12, left: 0, bottom: 0 }}>
+          <CartesianGrid stroke="#1e293b" strokeDasharray="3 3" />
+          <XAxis
+            dataKey="label"
+            stroke="#64748b"
+            fontSize={11}
+            tickLine={false}
+            axisLine={{ stroke: "#1e293b" }}
+            minTickGap={24}
+          />
+          <YAxis
+            stroke="#64748b"
+            fontSize={11}
+            tickLine={false}
+            axisLine={false}
+            width={56}
+            tickFormatter={(v: number) => usdCompact.format(v)}
+          />
+          <Tooltip content={<TrendTooltip />} />
+          <Line
+            type="monotone"
+            dataKey="total"
+            stroke="#34d399"
+            strokeWidth={2}
+            dot={{ r: 3, fill: "#34d399" }}
+            activeDot={{ r: 5 }}
+            isAnimationActive={false}
+          />
+        </LineChart>
+      </ResponsiveContainer>
+    </section>
+  );
+}
 
 export default function HistoryPage() {
   const { userId } = useUserId();
   const [load, setLoad] = useState<"loading" | "ready" | "error">("loading");
   const [reports, setReports] = useState<ReportSummary[]>([]);
+  const [series, setSeries] = useState<ReportSeriesPoint[]>([]);
   const [selected, setSelected] = useState<ReportDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
 
   useEffect(() => {
     if (!userId) return;
     let active = true;
-    getReportsHistory(userId)
-      .then((data) => active && (setReports(data), setLoad("ready")))
+    Promise.all([getReportsHistory(userId), getReportSeries(userId)])
+      .then(([hist, ser]) => {
+        if (!active) return;
+        setReports(hist);
+        setSeries(ser);
+        setLoad("ready");
+      })
       .catch(() => active && setLoad("error"));
     return () => {
       active = false;
@@ -49,6 +145,7 @@ export default function HistoryPage() {
 
         {load === "loading" && <p className="mt-8 text-sm text-slate-600">Loading history…</p>}
         {load === "error" && <p className="mt-8 text-sm text-rose-400">Could not load history.</p>}
+        {load === "ready" && <ValueTrendChart series={series} />}
         {load === "ready" && reports.length === 0 && (
           <p className="mt-8 rounded-xl border border-dashed border-slate-800 px-4 py-10 text-center text-sm text-slate-600">
             No reports yet. Generate one from the dashboard.

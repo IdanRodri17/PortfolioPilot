@@ -141,6 +141,13 @@ export interface ReportSummary {
   change_24h_percent: number | null;
 }
 
+// One point of the value trend (mirrors GET /api/reports/series/{user_id}).
+export interface ReportSeriesPoint {
+  generated_at: string; // ISO-8601, oldest first
+  total_usd: number;
+  change_24h_percent: number | null;
+}
+
 export interface ReportDetail {
   report_id: string;
   user_id: string;

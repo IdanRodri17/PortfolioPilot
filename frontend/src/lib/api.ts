@@ -18,8 +18,9 @@ import type {
   PortfolioResponse,
   Memory,
   ReportSummary,
+  ReportSeriesPoint,
   ReportDetail,
-  DeliveryPreferencesView, 
+  DeliveryPreferencesView,
   DeliveryPreference, 
   DeliveryPreferenceInput
 } from "@/lib/types";
@@ -77,6 +78,14 @@ export async function getReportsHistory(userId: string): Promise<ReportSummary[]
 export async function getReport(reportId: string): Promise<ReportDetail> {
   const res = await fetch(`${API_BASE}/api/reports/${reportId}`);
   if (!res.ok) throw new Error(`getReport failed: HTTP ${res.status}`);
+  return res.json();
+}
+
+export async function getReportSeries(
+  userId: string,
+): Promise<ReportSeriesPoint[]> {
+  const res = await fetch(`${API_BASE}/api/reports/series/${userId}`);
+  if (!res.ok) throw new Error(`getReportSeries failed: HTTP ${res.status}`);
   return res.json();
 }
 
