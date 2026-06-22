@@ -19,6 +19,7 @@ import {
   getDeliveryPreferences,
   putDeliveryPreferences,
   connectTelegram,
+  authHeaders,
 } from "@/lib/api";
 import type {
   DeliveryPreference,
@@ -157,6 +158,7 @@ export default function SettingsPage() {
     try {
       const res = await fetch(`${API_BASE}/api/deliveries/run-now/${userId}`, {
         method: "POST",
+        headers: await authHeaders(),
       });
       const data = await res.json();
       const channels = (data.channels ?? {}) as Record<string, string>;

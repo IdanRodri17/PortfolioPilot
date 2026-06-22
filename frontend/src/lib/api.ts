@@ -1,16 +1,15 @@
 /**
- * Typed fetch wrappers for the REST portfolio endpoints.
+ * Typed fetch wrappers for the REST endpoints.
  *
- * Only the two CRUD calls live here. The generate-report endpoint is an
- * SSE stream, not a fetch-and-parse call — it is consumed via EventSource
- * in the step-3 useReportStream hook, not from this module.
+ * Auth (V9): user-scoped calls attach an `Authorization: Bearer` token minted
+ * by the same-origin Next /api/token route (signed from the session). The
+ * backend verifies it and derives the user_id from the token, not the request.
+ * getReport (a uuid4 capability URL, reused by V15 public sharing) and
+ * validateTicker (public market data) stay unauthenticated.
  *
  * On type safety: res.json() is typed `any`, and the Promise<T> return
- * annotation is an unchecked assertion — TypeScript trusts the body
- * matches T but does not verify it at runtime. The backend's Pydantic
- * response_model is what guarantees the shape on the wire, so a runtime
- * validator (e.g. zod) here would be belt-and-braces the backend already
- * provides. If the contract ever drifted, that's where one would go.
+ * annotation is an unchecked assertion — the backend's Pydantic response_model
+ * is the runtime guarantee.
  */
 
 import type {
@@ -21,16 +20,40 @@ import type {
   ReportSeriesPoint,
   ReportDetail,
   DeliveryPreferencesView,
-  DeliveryPreference, 
-  DeliveryPreferenceInput
+  DeliveryPreference,
+  DeliveryPreferenceInput,
 } from "@/lib/types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL;
 
-export async function getPortfolio(
-  userId: string,
-): Promise<PortfolioResponse> {
-  const res = await fetch(`${API_BASE}/api/portfolio/${userId}`);
+// ─── API auth token (V9) ───
+// A short-lived HS256 token minted from the session by the Next /api/token
+// route. Cached and refreshed a minute before its 5-minute expiry so most calls
+// reuse it. The EventSource SSE (which can't set headers) reads it via
+// getApiToken and passes it as a query param; everything else uses authHeaders.
+let _tokenCache: { token: string; fetchedAt: number } | null = null;
+const _TOKEN_TTL_MS = 4 * 60 * 1000;
+
+export async function getApiToken(): Promise<string> {
+  const now = Date.now();
+  if (_tokenCache && now - _tokenCache.fetchedAt < _TOKEN_TTL_MS) {
+    return _tokenCache.token;
+  }
+  const res = await fetch("/api/token"); // same-origin Next route
+  if (!res.ok) throw new Error(`Could not get API token: HTTP ${res.status}`);
+  const { token } = (await res.json()) as { token: string };
+  _tokenCache = { token, fetchedAt: now };
+  return token;
+}
+
+export async function authHeaders(): Promise<Record<string, string>> {
+  return { Authorization: `Bearer ${await getApiToken()}` };
+}
+
+export async function getPortfolio(userId: string): Promise<PortfolioResponse> {
+  const res = await fetch(`${API_BASE}/api/portfolio/${userId}`, {
+    headers: await authHeaders(),
+  });
   if (!res.ok) {
     throw new Error(
       `getPortfolio(${userId}) failed: HTTP ${res.status} ${res.statusText}`,
@@ -44,7 +67,7 @@ export async function upsertPortfolio(
 ): Promise<PortfolioResponse> {
   const res = await fetch(`${API_BASE}/api/portfolio`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...(await authHeaders()) },
     body: JSON.stringify(payload),
   });
   if (!res.ok) {
@@ -56,7 +79,9 @@ export async function upsertPortfolio(
 }
 
 export async function getMemories(userId: string): Promise<Memory[]> {
-  const res = await fetch(`${API_BASE}/api/memories/${userId}`);
+  const res = await fetch(`${API_BASE}/api/memories/${userId}`, {
+    headers: await authHeaders(),
+  });
   if (!res.ok) throw new Error(`getMemories failed: HTTP ${res.status}`);
   return res.json();
 }
@@ -64,17 +89,23 @@ export async function getMemories(userId: string): Promise<Memory[]> {
 export async function deleteMemories(
   userId: string,
 ): Promise<{ user_id: string; deleted: number }> {
-  const res = await fetch(`${API_BASE}/api/memories/${userId}`, { method: "DELETE" });
+  const res = await fetch(`${API_BASE}/api/memories/${userId}`, {
+    method: "DELETE",
+    headers: await authHeaders(),
+  });
   if (!res.ok) throw new Error(`deleteMemories failed: HTTP ${res.status}`);
   return res.json();
 }
 
 export async function getReportsHistory(userId: string): Promise<ReportSummary[]> {
-  const res = await fetch(`${API_BASE}/api/reports/history/${userId}`);
+  const res = await fetch(`${API_BASE}/api/reports/history/${userId}`, {
+    headers: await authHeaders(),
+  });
   if (!res.ok) throw new Error(`getReportsHistory failed: HTTP ${res.status}`);
   return res.json();
 }
 
+// Public capability URL (uuid4) — no auth, reused by V15 public report sharing.
 export async function getReport(reportId: string): Promise<ReportDetail> {
   const res = await fetch(`${API_BASE}/api/reports/${reportId}`);
   if (!res.ok) throw new Error(`getReport failed: HTTP ${res.status}`);
@@ -84,7 +115,9 @@ export async function getReport(reportId: string): Promise<ReportDetail> {
 export async function getReportSeries(
   userId: string,
 ): Promise<ReportSeriesPoint[]> {
-  const res = await fetch(`${API_BASE}/api/reports/series/${userId}`);
+  const res = await fetch(`${API_BASE}/api/reports/series/${userId}`, {
+    headers: await authHeaders(),
+  });
   if (!res.ok) throw new Error(`getReportSeries failed: HTTP ${res.status}`);
   return res.json();
 }
@@ -102,7 +135,7 @@ export async function askReport(
 ): Promise<void> {
   const res = await fetch(`${API_BASE}/api/reports/${reportId}/ask`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...(await authHeaders()) },
     body: JSON.stringify({ question }),
   });
   if (!res.ok || !res.body) {
@@ -143,12 +176,12 @@ export async function askReport(
   }
 }
 
-// (uses the same API_BASE constant your other helpers use)
-
 export async function getDeliveryPreferences(
   userId: string,
 ): Promise<DeliveryPreferencesView> {
-  const res = await fetch(`${API_BASE}/api/delivery-preferences/${userId}`);
+  const res = await fetch(`${API_BASE}/api/delivery-preferences/${userId}`, {
+    headers: await authHeaders(),
+  });
   if (!res.ok) throw new Error(`Failed to load delivery preferences (${res.status})`);
   return res.json();
 }
@@ -159,7 +192,7 @@ export async function putDeliveryPreferences(
 ): Promise<DeliveryPreference> {
   const res = await fetch(`${API_BASE}/api/delivery-preferences/${userId}`, {
     method: "PUT",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...(await authHeaders()) },
     body: JSON.stringify(input),
   });
   if (!res.ok) {
@@ -170,9 +203,9 @@ export async function putDeliveryPreferences(
   return res.json();
 }
 
-// Mirrors GET /api/ticker/validate (api/portfolio.py). `found:false` is a
-// normal 200 response (unknown ticker); a thrown error means a real fetch
-// failure (e.g. 502), which callers treat as "couldn't verify", not "invalid".
+// Mirrors GET /api/ticker/validate (api/portfolio.py). Public market data — no
+// auth. `found:false` is a normal 200 (unknown ticker); a thrown error means a
+// real fetch failure (e.g. 502), which callers treat as "couldn't verify".
 export interface TickerValidation {
   found: boolean;
   symbol: string;
@@ -195,6 +228,7 @@ export async function connectTelegram(
 ): Promise<{ telegram_connected: boolean; chat_id: string }> {
   const res = await fetch(`${API_BASE}/api/telegram/connect/${userId}`, {
     method: "POST",
+    headers: await authHeaders(),
   });
   if (!res.ok) {
     const detail = await res.json().catch(() => null);
