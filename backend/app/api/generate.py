@@ -52,6 +52,7 @@ Why sentiment start/end are paired by run_id:
 
 import json
 import logging
+from datetime import date
 from uuid import uuid4
 
 from langgraph.types import Command
@@ -63,7 +64,8 @@ from sqlalchemy.orm import Session
 
 from app.db.base import get_db, SessionLocal
 from app.db.models import User, Report
-from app.schemas.report import ReportDiff, SentimentFlip
+from app.schemas.report import AdviceReview, GradedCall, ReportDiff, SentimentFlip
+from app.tools.stock_data import price_on
 import app.graph.builder as graph_builder
 
 logger = logging.getLogger(__name__)
@@ -169,16 +171,90 @@ def _compute_report_diff(prev: dict | None, curr: dict) -> dict:
     ).model_dump(mode="json")
 
 
+def _grade_call(action: str, pct_move: float) -> str:
+    """Grade one prior call from the asset's % move since it was made."""
+    if action == "reduce":
+        return "good" if pct_move < 0 else "poor"  # reduce + fell = good call
+    if action == "increase":
+        return "good" if pct_move > 0 else "poor"  # increase + rose = good call
+    # hold: rewarded for staying ~flat; a large move is neutral, not a miss.
+    return "good" if abs(pct_move) < 5 else "neutral"
+
+
+def _compute_advice_review(prev: dict | None, prev_at) -> dict:
+    """Grade the previous report's recommendations against actual price moves.
+
+    Deterministic (no LLM): for each prior rec, compare the asset's close on the
+    prior report's date with its current close (both via price_on, which falls
+    back to the nearest prior trading day and never raises — an unretrievable
+    price -> "insufficient_data"). One-step look-back only. Returns an
+    AdviceReview as a JSON-ready dict.
+    """
+    if not prev or prev_at is None:
+        return AdviceReview(
+            summary="No prior recommendations to grade yet."
+        ).model_dump(mode="json")
+
+    prev_date = prev_at.date()
+    recs = prev.get("rebalancing_recommendations", [])
+    if not recs:
+        return AdviceReview(
+            recommended_at=prev_date.isoformat(),
+            summary="The previous report made no recommendations to grade.",
+        ).model_dump(mode="json")
+
+    today = date.today()
+    calls: list[GradedCall] = []
+    tally = {"good": 0, "poor": 0, "neutral": 0, "insufficient_data": 0}
+    for rec in recs:
+        asset, action = rec["asset"], rec["action"]
+        historical = price_on(asset, prev_date)
+        current = price_on(asset, today)
+        if historical is None or current is None or historical == 0:
+            grade, pct_move = "insufficient_data", None
+        else:
+            pct_move = round((current - historical) / historical * 100, 2)
+            grade = _grade_call(action, pct_move)
+        tally[grade] += 1
+        calls.append(
+            GradedCall(
+                asset=asset,
+                action=action,
+                recommended_at=prev_date.isoformat(),
+                pct_move_since=pct_move,
+                grade=grade,
+            )
+        )
+
+    labels = (
+        ("good", "good"),
+        ("poor", "poor"),
+        ("neutral", "neutral"),
+        ("insufficient_data", "ungradeable"),
+    )
+    parts = [f"{tally[key]} {label}" for key, label in labels if tally[key]]
+    return AdviceReview(
+        recommended_at=prev_date.isoformat(),
+        calls=calls,
+        summary=" · ".join(parts) if parts else "no gradeable calls",
+    ).model_dump(mode="json")
+
+
 async def _report_event_stream(
-    graph, initial_state: dict, report_id: str, prev_report: dict | None
+    graph,
+    initial_state: dict,
+    report_id: str,
+    prev_report: dict | None,
+    prev_generated_at=None,
 ):
     """Map the astream_events firehose to SSE events.
 
     Yields status events per node, then report_complete (FinalReport +
-    report_id), then report_diff (V12b: what changed vs prev_report). If the
-    graph paused at human_review's interrupt (V6), also yields
-    human_input_required so the client can open the memory-approval modal and
-    resume via POST /api/resume-graph.
+    report_id), then report_diff (V12b: what changed vs prev_report) and
+    advice_review (V13: how the prior report's calls aged). If the graph paused
+    at human_review's interrupt (V6), also yields human_input_required so the
+    client can open the memory-approval modal and resume via
+    POST /api/resume-graph.
 
     config carries the thread_id: the graph is compiled WITH a checkpointer
     now, so every run must pass {"configurable": {"thread_id": ...}}. We reuse
@@ -265,6 +341,11 @@ async def _report_event_stream(
     # V12b: deterministic "what changed since your last report" diff (no LLM).
     yield _format_sse("report_diff", _compute_report_diff(prev_report, payload))
 
+    # V13: grade the previous report's recommendations against actual moves.
+    yield _format_sse(
+        "advice_review", _compute_advice_review(prev_report, prev_generated_at)
+    )
+
     # V6: did the run pause at human_review's interrupt? Surface the proposals.
     try:
         snapshot = await graph.aget_state(config)
@@ -346,9 +427,12 @@ async def generate_report(
         .first()
     )
     prev_report = prev.raw_result if prev else None
+    prev_generated_at = prev.generated_at if prev else None
 
     return StreamingResponse(
-        _report_event_stream(graph, initial_state, report_id, prev_report),
+        _report_event_stream(
+            graph, initial_state, report_id, prev_report, prev_generated_at
+        ),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",

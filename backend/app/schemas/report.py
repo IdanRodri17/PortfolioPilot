@@ -225,3 +225,38 @@ class ReportDiff(BaseModel):
         default_factory=list,
         description="Recommendations in the prior report but no longer present.",
     )
+
+
+class GradedCall(BaseModel):
+    """One prior recommendation graded against the asset's actual move (V13)."""
+
+    asset: str = Field(description="The asset the prior call was about.")
+    action: Literal["reduce", "increase", "hold"] = Field(
+        description="The action the prior report recommended."
+    )
+    recommended_at: str = Field(
+        description="ISO date of the report that made the call."
+    )
+    pct_move_since: float | None = Field(
+        default=None,
+        description="Percent price move since the call; None if not retrievable.",
+    )
+    grade: Literal["good", "poor", "neutral", "insufficient_data"] = Field(
+        description="good = the call aged well, poor = it didn't, neutral = a hold that moved, insufficient_data = no price history."
+    )
+
+
+class AdviceReview(BaseModel):
+    """Backward-looking report card on the previous report's calls (V13).
+
+    Computed deterministically at the boundary by comparing each prior
+    recommendation's asset price then vs now — no LLM. One-step look-back only.
+    """
+
+    recommended_at: str | None = Field(
+        default=None, description="ISO date of the prior report, or None if none."
+    )
+    calls: List[GradedCall] = Field(default_factory=list)
+    summary: str = Field(
+        default="", description="One-line tally, e.g. '2 good · 1 poor'."
+    )

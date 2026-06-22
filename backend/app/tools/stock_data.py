@@ -18,6 +18,7 @@ Concurrency note:
     asyncio.to_thread + asyncio.gather to parallelize multi-asset fetches.
 """
 
+from datetime import date, timedelta
 from functools import lru_cache
 
 import yfinance as yf
@@ -137,3 +138,34 @@ def get_sector(symbol: str) -> str:
     if not symbol:
         return "Uncategorized"
     return _get_sector_cached(symbol)
+
+
+@lru_cache(maxsize=1024)
+def _price_on_cached(symbol: str, iso_date: str) -> float | None:
+    """Cached inner price-on-date; `symbol` normalized, `iso_date` = YYYY-MM-DD."""
+    target = date.fromisoformat(iso_date)
+    # Look back ~6 calendar days so a weekend + a holiday still resolve to the
+    # nearest prior trading day. yfinance's `end` is exclusive, hence +1 day.
+    start = (target - timedelta(days=6)).isoformat()
+    end = (target + timedelta(days=1)).isoformat()
+    try:
+        hist = yf.Ticker(symbol).history(start=start, end=end)
+    except Exception:  # network, rate-limit, invalid symbol
+        return None
+    if hist.empty:
+        return None
+    # History is date-ordered; the last row is the trading day on/before target.
+    return round(float(hist["Close"].iloc[-1]), 2)
+
+
+def price_on(symbol: str, on: date) -> float | None:
+    """Closing price for `symbol` on `on`, or the nearest prior trading day.
+
+    Returns None if nothing is retrievable (delisted, invalid, or a yfinance
+    failure). Never raises — callers (V13 advice grading) degrade an
+    unretrievable price to "insufficient_data". Cached per (symbol, date).
+    """
+    symbol = symbol.strip().upper()
+    if not symbol:
+        return None
+    return _price_on_cached(symbol, on.isoformat())
