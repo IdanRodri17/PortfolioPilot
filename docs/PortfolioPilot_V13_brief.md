@@ -4,10 +4,10 @@
 > Captures V13: the AI grades its own past advice — the previous report's
 > recommendations scored against how those assets actually moved since.
 
-**Status:** Shipped (code complete; statically verified). The `v13` tag is
-**pending the live end-to-end smoke test** (a generated report showing the
-"How last report's calls aged" card with real graded moves). The grading logic
-was verified offline; code is committed on `main`.
+**Status:** Shipped. Tagged `v13` on `main`. The live smoke test confirmed the
+"How last report's calls aged" card; it also surfaced a same-day grading edge
+case (a flat 0.00% move graded "poor"), fixed live with a directional dead-zone
+(a sub-0.5% move → neutral, never a miss).
 
 **Headline:** the most distinctive feature on the roadmap — self-grading AI.
 When a new report runs, the previous report's `rebalancing_recommendations` are
@@ -29,7 +29,7 @@ no LLM.
 - **Frontend:** `npx tsc --noEmit` clean (one pre-existing unused-`loading`
   warning in `page.tsx`, untouched).
 
-**Smoke tests — pending your live run:**
+**Smoke tests — confirmed live (via the Docker stack):**
 
 - Generate a report (idan_demo has prior reports): a **"How last report's calls
   aged"** card appears under the recommendations — each prior call with its
@@ -89,8 +89,8 @@ when there's nothing to grade (first report, or no prior recommendations).
 
 ## Explicitly deferred (build in noted version)
 
-- **Live e2e confirmation + `v13` tag.** Generate a report, eyeball the card,
-  then `git tag v13`.
+- **Push the `v13` tag.** Created locally after the live smoke test passed;
+  `git push origin v13` to publish it.
 - **Multi-step equity curve (V13.5).** Grade against every prior report, or
   model "if you'd followed every rebalance" — needs assumptions about sizing and
   cash; out of scope for the one-step grade.
@@ -139,7 +139,8 @@ when it ships.)*
 feat(v13): grade prior recommendations against actual price moves
 feat(v13): render the advice report card
 docs(v13): add V13 implementation brief
-(tag) v13  — pending live e2e smoke test
+fix(v13): grade a too-small (or same-day) move as neutral, not poor
+(tag) v13
 ```
 
-To reconstruct the V13 baseline at any point once tagged: `git checkout v13`.
+To reconstruct the V13 baseline at any point: `git checkout v13`.
