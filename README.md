@@ -39,9 +39,11 @@ PortfolioPilot analyzes a user's stock holdings, reads real-time market news, ch
 - **Live streaming dashboard** ✅ — The backend streams agent progress over Server-Sent Events using `astream_events`; the Next.js frontend renders a live pipeline as each agent starts and finishes.
 - **Structured, validated LLM output** ✅ — The report is a Pydantic schema enforced at sampling time via `.with_structured_output()`, so parsing never fails and field descriptions double as the model's format instructions.
 - **Risk-profile awareness** ✅ — A deterministic (non-LLM) risk agent computes value-weighted composition and flags concentration against per-profile thresholds.
-- **Semantic long-term memory** 🚧 — A `PostgresStore` with pgvector recalls the user's most relevant past insights by semantic similarity and feeds them into each new report.
-- **Self-correcting guardrail loop** 📋 — A Reflexion-style cycle validates each report for hallucinated numbers and risk-profile violations, rewriting on failure (retry budget of 2).
-- **Human-in-the-loop memory approval** 📋 — The graph pauses via `interrupt()`, surfaces proposed memories for the user to approve, and resumes from the checkpoint with only the approved insights persisted.
+- **Semantic long-term memory** ✅ — A `PostgresStore` with pgvector recalls the user's most relevant past insights by semantic similarity and feeds them into each new report.
+- **Self-correcting guardrail loop** ✅ — A Reflexion-style cycle validates each report for hallucinated numbers and risk-profile violations, rewriting on failure (retry budget of 3).
+- **Human-in-the-loop memory approval** ✅ — The graph pauses via `interrupt()`, surfaces proposed memories for the user to approve, and resumes from the checkpoint with only the approved insights persisted.
+- **Scheduled multi-channel delivery** ✅ — A timezone-aware APScheduler dispatcher delivers the daily briefing to Telegram and email on each user's chosen cadence, with idempotent `last_sent_at` dedupe so a report is never sent twice.
+- **Real authentication** ✅ — Auth.js (NextAuth v5) credential auth with a login page, session-derived `user_id`, and middleware route protection. The backend JWT guard that closes the trusted-`user_id` gap is landing in V9.
 
 *Status legend: ✅ shipped · 🚧 in active development · 📋 designed / planned. See [Build status](#build-status).*
 
@@ -60,14 +62,14 @@ flowchart TD
     SA --> SY["synthesizer<br/><i>GPT-4o → FinalReport</i>"]
     RA --> SY
     SY --> GR{"guardrail<br/><i>validate</i>"}
-    GR -->|fail · retry &lt; 2| SY
+    GR -->|fail · retry &lt; 3| SY
     GR -->|pass| ME["memory_extractor<br/><i>propose insights</i>"]
     ME --> HR["human_review<br/><i>interrupt → approve</i>"]
     HR --> MS["memory_saver<br/><i>persist approved</i>"]
     MS --> END([END])
 ```
 
-The diagram shows the **target architecture**. As of now, `START → data_ingestion → (sentiment × N + risk) → synthesizer → END` is fully shipped and demoable. `memory_loader` + the `PostgresStore` are in active development; the `guardrail` loop and the `memory_extractor → human_review → memory_saver` chain are designed and landing next — see [Build status](#build-status).
+The diagram shows the **shipped architecture** — every node above is implemented and runs end to end: parallel `Send()` fan-out, the semantic `memory_loader`, the Reflexion `guardrail` retry loop, and the `memory_extractor → human_review → memory_saver` human-in-the-loop chain backed by the `PostgresSaver` checkpointer. See [Build status](#build-status).
 
 **Two persistence layers (an important distinction):**
 
@@ -86,11 +88,12 @@ The project is built **one version at a time**, each concluded with a Git tag, a
 | **V2** | Database + portfolio CRUD | Postgres (Docker), SQLAlchemy `User`/`Portfolio`, JSONB assets, multi-asset ingestion | ✅ Shipped |
 | **V3** | Parallel agents | `Send()` fan-out, `Annotated[List, add]` reducer, per-symbol `sentiment_agent`, deterministic `risk_agent`, Tavily | ✅ Shipped |
 | **V4** | SSE streaming + frontend | `astream_events`, `StreamingResponse`, SSE taxonomy, two-page Next.js dashboard + editor | ✅ Shipped |
-| **V5** | Semantic long-term memory | `PostgresStore` + pgvector, `memory_loader`, `memory_extractor`, report history + memory endpoints, `/history` + `/memory` pages | 🚧 In progress |
-| **V6** | Guardrail + HITL | Reflexion guardrail cycle, `interrupt()` / `Command(resume=...)`, `PostgresSaver` checkpointer | 📋 Planned |
-| **V6.5** | Crypto + polish | CoinGecko crypto holdings, UI refinements | 📋 Planned |
-| **V7** | Auth | NextAuth.js real authentication | 📋 Planned |
-| **V8** | Stretch | Daily Telegram digest (APScheduler), installable PWA, Israeli-market context | 📋 Planned |
+| **V5** | Semantic long-term memory | `PostgresStore` + pgvector, `memory_loader`, `memory_extractor`, report history + memory endpoints, `/history` + `/memory` pages | ✅ Shipped |
+| **V6** | Guardrail + HITL | Reflexion guardrail cycle, `interrupt()` / `Command(resume=...)`, `PostgresSaver` checkpointer | ✅ Shipped |
+| **V6.5** | Crypto (deferred) | CoinGecko crypto holdings + the dormant `max_crypto_pct` threshold — deferred, not yet shipped | 📋 Planned |
+| **V7** | Multi-channel delivery | Scheduled Telegram + email digests, APScheduler dispatcher, timezone-aware `DeliveryPreference`, idempotent `last_sent_at` dedupe | ✅ Shipped |
+| **V8** | Authentication | Auth.js (NextAuth v5) credential auth, login page, session-derived `user_id`, middleware route protection | ✅ Shipped |
+| **V9** | Backend JWT verification | FastAPI dependency that verifies the Auth.js session token and derives `user_id` server-side — closes the trusted-query-param gap | 🚧 In progress |
 
 ---
 
@@ -119,7 +122,7 @@ The project is built **one version at a time**, each concluded with a Git tag, a
 
 **Structured output.** The synthesizer uses `prompt | llm.with_structured_output(FinalReport)`. The Pydantic model's JSON schema — including every field's description — is injected as the LLM's format specification, constraining the output at sampling time. The field descriptions are effectively prompt engineering, not documentation.
 
-**Semantic memory.** 🚧 `memory_loader` builds a natural-language query from the current portfolio and risk profile, and `store.search()` embeds it and returns the most relevant past insights by cosine similarity — surfacing *relevant* memories for the situation rather than dumping the full history into the prompt. Memory writes go through a propose-then-persist flow (with human approval in V6).
+**Semantic memory.** `memory_loader` builds a natural-language query from the current portfolio and risk profile, and `store.search()` embeds it and returns the most relevant past insights by cosine similarity — surfacing *relevant* memories for the situation rather than dumping the full history into the prompt. Memory writes go through a propose-then-persist flow with human-in-the-loop approval.
 
 ---
 
@@ -266,11 +269,17 @@ Or open the dashboard at **http://localhost:3000** and click **Generate report**
 | `POST` | `/api/portfolio` | Create or replace a user's portfolio + risk profile | — | ✅ |
 | `GET` | `/api/portfolio/{user_id}` | Fetch the current portfolio | — | ✅ |
 | `GET` | `/api/generate-report?user_id=...` | Run the graph, stream agent progress + final report | **SSE** | ✅ |
-| `GET` | `/api/reports/history/{user_id}` | List past reports | — | 🚧 |
-| `GET` | `/api/reports/{report_id}` | Fetch one historical report | — | 🚧 |
-| `GET` | `/api/memories/{user_id}` | View extracted insights (transparency) | — | 🚧 |
-| `DELETE` | `/api/memories/{user_id}` | Wipe memory (demo reset) | — | 🚧 |
-| `POST` | `/api/resume-graph?thread_id=...` | Resume an interrupted graph with user decisions | **SSE** | 📋 |
+| `GET` | `/api/reports/history/{user_id}` | List past reports | — | ✅ |
+| `GET` | `/api/reports/{report_id}` | Fetch one historical report | — | ✅ |
+| `GET` | `/api/memories/{user_id}` | View extracted insights (transparency) | — | ✅ |
+| `DELETE` | `/api/memories/{user_id}` | Wipe memory (demo reset) | — | ✅ |
+| `POST` | `/api/resume-graph?thread_id=...` | Resume an interrupted graph with user decisions | **SSE** | ✅ |
+| `POST` | `/api/auth/verify` | Verify an Auth.js session token (V8) | — | ✅ |
+| `GET` | `/api/delivery-preferences/{user_id}` | Read a user's delivery schedule + channels | — | ✅ |
+| `PUT` | `/api/delivery-preferences/{user_id}` | Set a user's delivery schedule + channels | — | ✅ |
+| `POST` | `/api/telegram/connect/{user_id}` | Bind a Telegram chat via `getUpdates` | — | ✅ |
+| `POST` | `/api/deliveries/run-now/{user_id}` | Generate + deliver a briefing immediately | — | ✅ |
+| `POST` | `/api/run-due-deliveries` | Dispatch every delivery currently due | — | ✅ |
 
 `/api/generate-report` is `GET` because the browser's native `EventSource` only supports GET; the portfolio is resolved server-side from `user_id`.
 
@@ -305,11 +314,16 @@ A few deliberate choices that shape the codebase:
 
 ## Roadmap
 
-- **V5** 🚧 — Semantic long-term memory: `PostgresStore` recall and extraction, report history, memory-transparency endpoints, `/history` and `/memory` pages, value-weighted allocation chart.
-- **V6** 📋 — Self-correcting guardrail loop (Reflexion pattern) and human-in-the-loop memory approval via `interrupt()` + `PostgresSaver` checkpointer.
-- **V6.5** 📋 — Crypto holdings via CoinGecko.
-- **V7** 📋 — Real authentication with NextAuth.js.
-- **V8** 📋 — Daily 08:00 Telegram digest (APScheduler), installable PWA, and Israeli-market context (Bank of Israel rate, TASE tickers).
+The next wave makes the AI **visibly smarter** and the app **publishable** — full spec in `PortfolioPilot_Upgrades_BuildSpec.md`.
+
+- **V9** 🚧 — Backend JWT verification: a FastAPI dependency that verifies the Auth.js session token and derives `user_id` server-side, closing the trusted-query-param gap (the default-closed baseline the demo/share routes later opt out of).
+- **V10** 📋 — Value-weighted allocation donut (Recharts) on the dashboard, plus inline ticker validation (company name + live price) in the portfolio editor.
+- **V11** 📋 — A `macro_context_agent` that analyzes the portfolio as a whole for sector concentration and surfaces a diversification score.
+- **V12** 📋 — Portfolio value trend chart over time, and a "since your last report" diff strip (valuation delta, sentiment flips, resolved/new risk violations).
+- **V13** 📋 — The AI grades its own past advice: each prior recommendation scored against how that asset actually moved since.
+- **V14** 📋 — Chat with your report: grounded, token-streamed follow-up Q&A over a single archived report.
+- **V15** 📋 — Zero-signup guest/demo mode and public shareable report links with PDF export.
+- **V16** 📋 — Stretch shelf: threshold alerts on the delivery scheduler, crypto (CoinGecko) + Israeli-market context, and a streamed report narrative.
 
 ---
 
