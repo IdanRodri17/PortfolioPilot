@@ -6,8 +6,7 @@
  * In the App Router, this file's location (app/portfolio/page.tsx) defines
  * the route. It loads the current portfolio via getPortfolio, lets the user
  * edit the asset map and risk profile, and persists via upsertPortfolio
- * (the V2 POST endpoint). Backed entirely by existing endpoints — no
- * backend work.
+ * (the V2 POST endpoint).
  *
  * Editable model: an array of {id, symbol, quantity} rows rather than the
  * raw {symbol: quantity} map. Editing a symbol in a map means mutating a
@@ -16,14 +15,14 @@
  * at save time, mirroring the backend's PortfolioRequest rules: every symbol
  * non-empty and unique, every quantity > 0.
  *
- * This POST is the first browser request to hit a non-GET endpoint, so it's
- * the first to trigger the CORS preflight the middleware's wildcard
- * allow_methods/allow_headers answer.
+ * V10b: each symbol is validated inline against GET /api/ticker/validate on a
+ * short debounce, surfacing the company name + live price, blocking save on a
+ * typo, and degrading gracefully (allow save) if validation itself fails.
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { getPortfolio, upsertPortfolio } from "@/lib/api";
+import { getPortfolio, upsertPortfolio, validateTicker } from "@/lib/api";
 import type { RiskProfile } from "@/lib/types";
 
 import { useUserId } from "@/lib/useUserId";
@@ -39,6 +38,13 @@ type LoadState = "loading" | "ready" | "error";
 type SaveState =
   | { status: "idle" | "saving" | "saved" }
   | { status: "error"; message: string };
+
+// Per-symbol ticker validation status, keyed by normalized symbol.
+type TickerStatus =
+  | { state: "checking" }
+  | { state: "valid"; name: string; price: number }
+  | { state: "invalid" }
+  | { state: "error" }; // couldn't verify (network) — non-blocking
 
 function rowsToAssets(rows: Row[]): { assets?: Record<string, number>; error?: string } {
 
@@ -57,12 +63,43 @@ function rowsToAssets(rows: Row[]): { assets?: Record<string, number>; error?: s
   return { assets };
 }
 
+function TickerStatusLine({ status }: { status?: TickerStatus }) {
+  if (!status) return null;
+  if (status.state === "checking")
+    return <p className="mt-1 pl-1 text-xs text-slate-500">Checking…</p>;
+  if (status.state === "valid")
+    return (
+      <p className="mt-1 pl-1 text-xs text-emerald-400">
+        {status.name} · ${status.price.toFixed(2)}
+      </p>
+    );
+  if (status.state === "invalid")
+    return (
+      <p className="mt-1 pl-1 text-xs text-rose-400">Couldn’t find that ticker.</p>
+    );
+  // network error — couldn't verify; explicitly non-blocking
+  return (
+    <p className="mt-1 pl-1 text-xs text-amber-400">
+      Couldn’t verify right now — you can still save.
+    </p>
+  );
+}
+
 export default function PortfolioEditorPage() {
   const { userId } = useUserId();
   const [load, setLoad] = useState<LoadState>("loading");
   const [rows, setRows] = useState<Row[]>([]);
   const [riskProfile, setRiskProfile] = useState<RiskProfile>("balanced");
   const [save, setSave] = useState<SaveState>({ status: "idle" });
+  const [validations, setValidations] = useState<Record<string, TickerStatus>>(
+    {},
+  );
+  // Lets the debounce read the latest validations without re-arming the timer.
+  // Synced in an effect (not during render) per React 19's refs rule.
+  const validationsRef = useRef(validations);
+  useEffect(() => {
+    validationsRef.current = validations;
+  }, [validations]);
 
   useEffect(() => {
     if (!userId) return;
@@ -85,6 +122,45 @@ export default function PortfolioEditorPage() {
       active = false;
     };
   }, [userId]);
+
+  // Distinct, normalized symbols currently in the editor. symbolsKey changes
+  // only when the SET of symbols changes — not on a quantity keystroke — so
+  // validation re-arms exactly when it should.
+  const symbols = rows.map((r) => r.symbol.trim().toUpperCase()).filter(Boolean);
+  const symbolsKey = [...new Set(symbols)].sort().join(",");
+
+  // Debounced inline validation: 400ms after edits settle, validate any symbol
+  // not yet looked up. One request per settled symbol, never per keystroke.
+  useEffect(() => {
+    const handle = setTimeout(() => {
+      const known = validationsRef.current;
+      const pending = [...new Set(symbols)].filter((s) => !(s in known));
+      if (pending.length === 0) return;
+      setValidations((v) => {
+        const next = { ...v };
+        for (const s of pending) next[s] = { state: "checking" };
+        return next;
+      });
+      for (const sym of pending) {
+        validateTicker(sym)
+          .then((r) =>
+            setValidations((v) => ({
+              ...v,
+              [sym]: r.found
+                ? { state: "valid", name: r.name!, price: r.price! }
+                : { state: "invalid" },
+            })),
+          )
+          .catch(() =>
+            // Fetch failure (not "not found") — degrade gracefully, allow save.
+            setValidations((v) => ({ ...v, [sym]: { state: "error" } })),
+          );
+      }
+    }, 400);
+    return () => clearTimeout(handle);
+    // symbols is read via closure; symbolsKey is the content-stable trigger.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [symbolsKey]);
 
   // Any edit invalidates the previous save/error message.
   function touched() {
@@ -126,6 +202,13 @@ export default function PortfolioEditorPage() {
       setSave({ status: "error", message: String(e) });
     }
   }
+
+  // Block save while any present symbol is a known typo. Network "error"
+  // states are intentionally NOT blocking — we degrade rather than trap.
+  const hasInvalidTicker = rows.some((r) => {
+    const s = r.symbol.trim().toUpperCase();
+    return s !== "" && validations[s]?.state === "invalid";
+  });
 
   return (
     <main className="min-h-screen bg-slate-950 text-slate-100">
@@ -181,35 +264,47 @@ export default function PortfolioEditorPage() {
               <h2 className="mb-3 text-sm font-medium tracking-wide text-slate-300">
                 Assets
               </h2>
-              <div className="space-y-2">
-                {rows.map((row) => (
-                  <div key={row.id} className="flex items-center gap-2">
-                    <input
-                      value={row.symbol}
-                      onChange={(e) =>
-                        updateRow(row.id, "symbol", e.target.value.toUpperCase())
-                      }
-                      placeholder="AAPL"
-                      className="w-28 rounded-lg border border-slate-800 bg-slate-900 px-3 py-2 font-mono text-sm text-slate-100 placeholder:text-slate-600 focus:border-emerald-600 focus:outline-none"
-                    />
-                    <input
-                      value={row.quantity}
-                      onChange={(e) => updateRow(row.id, "quantity", e.target.value)}
-                      type="number"
-                      min="0"
-                      step="any"
-                      placeholder="0"
-                      className="w-32 rounded-lg border border-slate-800 bg-slate-900 px-3 py-2 font-mono text-sm text-slate-100 placeholder:text-slate-600 focus:border-emerald-600 focus:outline-none"
-                    />
-                    <button
-                      onClick={() => removeRow(row.id)}
-                      aria-label={`Remove ${row.symbol || "asset"}`}
-                      className="rounded-lg px-2 py-2 text-slate-500 transition-colors hover:text-rose-400"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                ))}
+              <div className="space-y-3">
+                {rows.map((row) => {
+                  const sym = row.symbol.trim().toUpperCase();
+                  const status = sym ? validations[sym] : undefined;
+                  const invalid = status?.state === "invalid";
+                  return (
+                    <div key={row.id}>
+                      <div className="flex items-center gap-2">
+                        <input
+                          value={row.symbol}
+                          onChange={(e) =>
+                            updateRow(row.id, "symbol", e.target.value.toUpperCase())
+                          }
+                          placeholder="AAPL"
+                          className={`w-28 rounded-lg border bg-slate-900 px-3 py-2 font-mono text-sm text-slate-100 placeholder:text-slate-600 focus:outline-none ${
+                            invalid
+                              ? "border-rose-700 focus:border-rose-600"
+                              : "border-slate-800 focus:border-emerald-600"
+                          }`}
+                        />
+                        <input
+                          value={row.quantity}
+                          onChange={(e) => updateRow(row.id, "quantity", e.target.value)}
+                          type="number"
+                          min="0"
+                          step="any"
+                          placeholder="0"
+                          className="w-32 rounded-lg border border-slate-800 bg-slate-900 px-3 py-2 font-mono text-sm text-slate-100 placeholder:text-slate-600 focus:border-emerald-600 focus:outline-none"
+                        />
+                        <button
+                          onClick={() => removeRow(row.id)}
+                          aria-label={`Remove ${row.symbol || "asset"}`}
+                          className="rounded-lg px-2 py-2 text-slate-500 transition-colors hover:text-rose-400"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                      <TickerStatusLine status={status} />
+                    </div>
+                  );
+                })}
               </div>
               <button
                 onClick={addRow}
@@ -223,7 +318,7 @@ export default function PortfolioEditorPage() {
             <section className="flex items-center gap-4">
               <button
                 onClick={handleSave}
-                disabled={save.status === "saving"}
+                disabled={save.status === "saving" || hasInvalidTicker}
                 className="rounded-lg bg-emerald-600 px-4 py-2 font-medium text-white transition-colors hover:bg-emerald-500 disabled:opacity-50"
               >
                 {save.status === "saving" ? "Saving…" : "Save portfolio"}
@@ -233,6 +328,11 @@ export default function PortfolioEditorPage() {
               )}
               {save.status === "error" && (
                 <span className="text-sm text-rose-400">{save.message}</span>
+              )}
+              {hasInvalidTicker && save.status !== "error" && (
+                <span className="text-sm text-rose-400">
+                  Fix the invalid ticker(s) before saving.
+                </span>
               )}
             </section>
           </div>

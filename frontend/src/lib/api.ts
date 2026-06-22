@@ -107,6 +107,26 @@ export async function putDeliveryPreferences(
   return res.json();
 }
 
+// Mirrors GET /api/ticker/validate (api/portfolio.py). `found:false` is a
+// normal 200 response (unknown ticker); a thrown error means a real fetch
+// failure (e.g. 502), which callers treat as "couldn't verify", not "invalid".
+export interface TickerValidation {
+  found: boolean;
+  symbol: string;
+  name?: string;
+  price?: number;
+}
+
+export async function validateTicker(symbol: string): Promise<TickerValidation> {
+  const res = await fetch(
+    `${API_BASE}/api/ticker/validate?symbol=${encodeURIComponent(symbol)}`,
+  );
+  if (!res.ok) {
+    throw new Error(`validateTicker(${symbol}) failed: HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
 export async function connectTelegram(
   userId: string,
 ): Promise<{ telegram_connected: boolean; chat_id: string }> {
