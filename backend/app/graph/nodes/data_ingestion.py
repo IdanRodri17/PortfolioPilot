@@ -14,7 +14,12 @@ This node orchestrates — iterate symbols, call the tool, catch failures.
 import logging
 
 from app.graph.state import PortfolioState
-from app.tools.stock_data import fetch_stock_data, StockDataError
+from app.tools.stock_data import (
+    StockDataError,
+    fetch_crypto_data,
+    fetch_stock_data,
+    is_crypto,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +48,13 @@ def data_ingestion(state: PortfolioState) -> dict:
     market_data = {}
     for symbol in state["portfolio"].keys():
         try:
-            market_data[symbol] = fetch_stock_data(symbol)
+            # V16: route crypto tickers to CoinGecko, everything else to
+            # yfinance (which also covers TASE ".TA" tickers). Both return the
+            # same {price, change_24h_percent} shape.
+            if is_crypto(symbol):
+                market_data[symbol] = fetch_crypto_data(symbol)
+            else:
+                market_data[symbol] = fetch_stock_data(symbol)
         except StockDataError as e:
             logger.warning("data_ingestion: skipping %s — %s", symbol, e)
             # Continue with remaining symbols; do not bubble.

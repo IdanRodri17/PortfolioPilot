@@ -21,11 +21,80 @@ Concurrency note:
 from datetime import date, timedelta
 from functools import lru_cache
 
+import httpx
 import yfinance as yf
 
 
 class StockDataError(Exception):
     """Raised when stock price data cannot be retrieved for a symbol."""
+
+
+# Curated crypto tickers -> CoinGecko coin ids (V16). CoinGecko prices by id and
+# many coins share a ticker, so we map the common ones explicitly rather than do
+# an ambiguous symbol->id lookup. Extend as holdings require.
+CRYPTO_IDS: dict[str, str] = {
+    "BTC": "bitcoin",
+    "ETH": "ethereum",
+    "SOL": "solana",
+    "ADA": "cardano",
+    "XRP": "ripple",
+    "DOGE": "dogecoin",
+    "DOT": "polkadot",
+    "MATIC": "matic-network",
+    "LTC": "litecoin",
+    "LINK": "chainlink",
+    "AVAX": "avalanche-2",
+    "BNB": "binancecoin",
+    "USDT": "tether",
+    "USDC": "usd-coin",
+}
+
+_COINGECKO_URL = "https://api.coingecko.com/api/v3/simple/price"
+
+
+def is_crypto(symbol: str) -> bool:
+    """True if `symbol` is a known crypto ticker (priced via CoinGecko)."""
+    return symbol.strip().upper() in CRYPTO_IDS
+
+
+def is_tase(symbol: str) -> bool:
+    """True if `symbol` is a Tel Aviv Stock Exchange ticker (yfinance ".TA")."""
+    return symbol.strip().upper().endswith(".TA")
+
+
+def fetch_crypto_data(symbol: str) -> dict:
+    """Fetch latest USD price + 24h change for a crypto symbol via CoinGecko.
+
+    Returns the same {"price", "change_24h_percent"} shape as fetch_stock_data,
+    so data_ingestion and risk_agent treat crypto and stocks uniformly. Raises
+    StockDataError on any failure (unknown coin, network, malformed response) so
+    the existing per-asset error tolerance applies.
+    """
+    coin_id = CRYPTO_IDS.get(symbol.strip().upper())
+    if coin_id is None:
+        raise StockDataError(f"Unknown crypto symbol '{symbol}'.")
+    try:
+        resp = httpx.get(
+            _COINGECKO_URL,
+            params={
+                "ids": coin_id,
+                "vs_currencies": "usd",
+                "include_24hr_change": "true",
+            },
+            timeout=10,
+        )
+        resp.raise_for_status()
+        data = resp.json()[coin_id]
+        price = data["usd"]
+        change = data.get("usd_24h_change", 0.0)
+    except (httpx.HTTPError, KeyError, ValueError) as exc:
+        raise StockDataError(
+            f"Could not fetch crypto price for '{symbol}': {exc}"
+        ) from exc
+    return {
+        "price": round(float(price), 2),
+        "change_24h_percent": round(float(change), 2),
+    }
 
 
 def fetch_stock_data(symbol: str) -> dict:
@@ -113,6 +182,11 @@ def lookup_symbol(symbol: str) -> dict | None:
     symbol = symbol.strip().upper()
     if not symbol:
         return None
+    if is_crypto(symbol):
+        # Known crypto -> price via CoinGecko; a fetch failure raises (caller
+        # soft-warns), never a "not found" since it's in our map.
+        data = fetch_crypto_data(symbol)
+        return {"name": CRYPTO_IDS[symbol].replace("-", " ").title(), "price": data["price"]}
     return _lookup_symbol_cached(symbol)
 
 

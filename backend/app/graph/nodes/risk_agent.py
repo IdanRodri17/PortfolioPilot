@@ -26,8 +26,8 @@ Why pure compute (no LLM):
 Versioning:
     V3: stock-only. The max_crypto_pct threshold in RISK_PROFILES is
         defined but not evaluated — V3 has no crypto symbol detector.
-    V6.5: add crypto detection (CoinGecko symbols vs yfinance symbols)
-          and activate the crypto threshold check.
+    V16: crypto detection (CoinGecko symbols, via is_crypto) activates the
+         max_crypto_pct threshold check.
 """
 
 import logging
@@ -35,6 +35,7 @@ from typing import Dict
 
 from app.graph.risk_profiles import RISK_PROFILES
 from app.graph.state import PortfolioState
+from app.tools.stock_data import is_crypto
 
 logger = logging.getLogger(__name__)
 
@@ -96,8 +97,15 @@ def _check_violations(
             f"profile recommends at least {min_assets} for adequate diversification."
         )
 
-    # max_crypto_pct intentionally not evaluated in V3 — no crypto
-    # symbol detector yet. V6.5 will add this.
+    # Crypto-exposure check (activated in V16). Sum the value share of crypto
+    # holdings and flag if it exceeds the profile's max_crypto_pct.
+    max_crypto = profile_thresholds["max_crypto_pct"]
+    crypto_pct = sum(pct for sym, pct in composition.items() if is_crypto(sym))
+    if crypto_pct > max_crypto:
+        violations.append(
+            f"Crypto is {crypto_pct:.1f}% of the portfolio, exceeding the "
+            f"{profile_name} profile cap of {max_crypto:.0f}%."
+        )
 
     return violations
 
