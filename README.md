@@ -186,7 +186,7 @@ PortfolioPilot/
 
 - **Python 3.12+**
 - **Node.js 18+**
-- **Docker** (for Postgres with pgvector)
+- **Docker** (runs the whole stack, or just Postgres for host dev)
 - An **OpenAI API key** and a **Tavily API key** (free tier)
 
 ### 1. Clone
@@ -196,12 +196,43 @@ git clone https://github.com/IdanRodri17/PortfolioPilot.git
 cd PortfolioPilot
 ```
 
+### Run with Docker (all services)
+
+The whole stack — Postgres, backend, and frontend — runs with one command. You
+need Docker and the two env files (`backend/.env` and `frontend/.env.local` —
+variables shown in steps 3 and 4 below).
+
+```bash
+docker compose up            # first run builds the images; Ctrl-C to stop
+# docker compose up -d       # …or detached
+```
+
+- Frontend → http://localhost:3000 · Backend → http://localhost:8000 · Postgres → `:5432`
+- Source is bind-mounted, so code edits hot-reload. After changing
+  `requirements.txt` or `package.json`, rebuild: `docker compose up -d --build`.
+- `docker compose down` stops everything; the `portfoliopilot_pg` volume keeps your data.
+
+Inside the compose network the backend reaches Postgres at the `postgres` host
+(`DATABASE_URL` is overridden) and the frontend's server-side auth call reaches
+the backend at `http://backend:8000` (`INTERNAL_API_BASE_URL`); the browser
+still uses `NEXT_PUBLIC_API_BASE_URL=http://localhost:8000`.
+
+> **Hot reload note.** The frontend dev server (Turbopack) can miss file changes
+> over a Docker-on-Windows bind mount — if an edit doesn't appear, run
+> `docker compose restart frontend`, or use the host dev server (below) for
+> frontend-heavy work.
+
+---
+
+To run the services **directly on your host** instead (snappier for frontend
+dev), start only the database and run the apps yourself:
+
 ### 2. Start Postgres
 
 From the repo root:
 
 ```bash
-docker compose up -d
+docker compose up -d postgres
 ```
 
 This brings up PostgreSQL with the pgvector extension pre-installed.
