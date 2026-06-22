@@ -62,6 +62,10 @@ class Settings(BaseSettings):
     # boots without it; the auth dependency 500s if a guarded route is hit while
     # it's unset (a deployment error, surfaced loudly).
     auth_secret: str | None = None
+    # V16: optional Bank of Israel policy rate (percent). When set, it's surfaced
+    # as Israeli-market context in the report; left unset by default so the line
+    # only appears when configured.
+    bank_of_israel_rate: float | None = None
 
 
 @lru_cache

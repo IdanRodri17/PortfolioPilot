@@ -49,6 +49,7 @@ from app.schemas.report import (
     SectorAllocation,
     SectorConcentration,
 )
+from app.tools.stock_data import is_tase
 
 SYSTEM_PROMPT = (
     "You are PortfolioPilot, an AI wealth-management assistant. You "
@@ -80,6 +81,7 @@ HUMAN_PROMPT = (
     "Sector concentration (deterministic, computed by upstream "
     "macro_context_agent over the whole portfolio):\n"
     "{macro_analysis_block}\n\n"
+    "{israeli_context_block}"
     "What we remember about this user from past sessions (known "
     "preferences and history — NOT new market facts to act on):\n"
     "{long_term_memory_block}\n\n"
@@ -106,6 +108,8 @@ HUMAN_PROMPT = (
     "recommendations. When the macro analysis flags a dominant sector or "
     "elevated concentration, name the sector and what it means for "
     "diversification, using the figures above rather than invented ones. "
+    "If Israeli market context is provided above (TASE holdings or the Bank of "
+    "Israel rate), weave it in briefly. "
     "Where relevant, connect the analysis to the user's remembered "
     "preferences so the report feels personal and continuous with past "
     "sessions. If no preferences are on record, do not mention memory "
@@ -241,6 +245,24 @@ def _format_macro_block(macro: dict) -> str:
     )
 
 
+def _format_israeli_context_block(portfolio: Dict[str, float], boi_rate) -> str:
+    """Israeli-market context (V16): TASE holdings + the Bank of Israel rate.
+
+    Self-contained block — empty string when there's nothing to say (no TASE
+    holding and no configured rate), so the prompt slot simply disappears.
+    """
+    tase = sorted(s for s in portfolio if is_tase(s))
+    if not tase and boi_rate is None:
+        return ""
+    lines = []
+    if tase:
+        lines.append(f"TASE-listed (Tel Aviv) holdings: {', '.join(tase)}.")
+    if boi_rate is not None:
+        lines.append(f"Bank of Israel policy rate: {boi_rate}%.")
+    body = "\n".join(f"  - {line}" for line in lines)
+    return f"Israeli market context:\n{body}\n\n"
+
+
 def _format_long_term_memory_block(memories: List[dict]) -> str:
     """Render retrieved long-term memories as a labeled list for the prompt.
 
@@ -357,6 +379,9 @@ def synthesizer(state: PortfolioState) -> dict:
             ),
             "risk_analysis_block": _format_risk_analysis_block(risk_analysis),
             "macro_analysis_block": _format_macro_block(macro_analysis),
+            "israeli_context_block": _format_israeli_context_block(
+                portfolio, get_settings().bank_of_israel_rate
+            ),
             "long_term_memory_block": _format_long_term_memory_block(long_term_memory),
             "guardrail_feedback_block": _format_guardrail_feedback_block(
                 state.get("guardrail_feedback")
