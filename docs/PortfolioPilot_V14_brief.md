@@ -4,10 +4,9 @@
 > Captures V14: chat with your report — grounded, token-streamed follow-up Q&A
 > over a single archived report.
 
-**Status:** Shipped (code complete; statically verified). The `v14` tag is
-**pending the live end-to-end smoke test** (asking a question and watching the
-answer stream token-by-token). The endpoint wiring (404 / 422) was verified
-live; code is committed on `main`.
+**Status:** Shipped. Tagged `v14` on `main`. The live smoke test confirmed a
+grounded answer streaming token-by-token in the browser (and an out-of-scope
+question declined rather than hallucinated).
 
 **Headline:** the app's first real **token streaming**. After a report renders,
 a chat box answers follow-ups ("why reduce AAPL?", "what's my biggest risk?")
@@ -22,7 +21,7 @@ deliberate counter-case to the report endpoint's no-token rule. No graph re-run.
 - **Frontend:** `npx tsc --noEmit` clean (one pre-existing unused-`loading`
   warning in `page.tsx`, untouched).
 
-**Smoke tests — pending your live run:**
+**Smoke tests — confirmed live (via the Docker stack):**
 
 - After a report, ask "why reduce AAPL?" → the answer **streams progressively**
   (not all at once) and cites the report's own AAPL sentiment/recommendation.
@@ -79,8 +78,8 @@ is visually secondary (slate, compact) and keeps the not-financial-advice note.
 
 ## Explicitly deferred (build in noted version)
 
-- **Live e2e confirmation + `v14` tag.** Ask a question, watch it stream, then
-  `git tag v14`.
+- **Push the `v14` tag.** Created locally after the live smoke test passed;
+  `git push origin v14` to publish it.
 - **Conversation memory.** Each ask is stateless (one question → one grounded
   answer); multi-turn context within a chat is a later enhancement.
 - **Auth on the ask endpoint.** Like the other report reads, it's currently
@@ -131,7 +130,7 @@ it ships.)*
 feat(v14): grounded streaming Q&A endpoint over an archived report
 feat(v14): report chat panel with streamed answers
 docs(v14): add V14 implementation brief
-(tag) v14  — pending live e2e smoke test
+(tag) v14
 ```
 
-To reconstruct the V14 baseline at any point once tagged: `git checkout v14`.
+To reconstruct the V14 baseline at any point: `git checkout v14`.
