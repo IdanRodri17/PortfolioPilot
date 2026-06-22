@@ -24,9 +24,11 @@ import type {
   RecommendationAction,
   SectorConcentration,
   ReportDiff,
+  AdviceReview,
 } from "@/lib/types";
 import { AllocationDonut } from "@/components/AllocationDonut";
 import { SinceLastReport } from "@/components/SinceLastReport";
+import { AdviceReportCard } from "@/components/AdviceReportCard";
 
 const usd = new Intl.NumberFormat("en-US", {
   style: "currency",
@@ -190,9 +192,11 @@ function ConcentrationSection({ data }: { data: SectorConcentration }) {
 export function FinalReportView({
   report,
   diff,
+  adviceReview,
 }: {
   report: FinalReport;
   diff?: ReportDiff | null;
+  adviceReview?: AdviceReview | null;
 }) {
   const val = report.portfolio_valuation;
   const changePositive = val.change_24h_percent >= 0;
@@ -289,6 +293,9 @@ export function FinalReportView({
           </div>
         )}
       </section>
+
+      {/* AI self-grading of the prior report's calls (V13) */}
+      {adviceReview && <AdviceReportCard review={adviceReview} />}
 
       {/* Narrative */}
       <section className="rounded-xl border border-slate-800 bg-slate-900/60 p-5">

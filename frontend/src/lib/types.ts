@@ -106,6 +106,21 @@ export interface ReportDiff {
   recommendations_resolved: string[];
 }
 
+// AI self-grading of the prior report's calls (mirrors AdviceReview; V13).
+export interface GradedCall {
+  asset: string;
+  action: RecommendationAction; // "reduce" | "increase" | "hold"
+  recommended_at: string; // ISO date of the prior report
+  pct_move_since: number | null;
+  grade: "good" | "poor" | "neutral" | "insufficient_data";
+}
+
+export interface AdviceReview {
+  recommended_at: string | null;
+  calls: GradedCall[];
+  summary: string;
+}
+
 // ─── SSE event taxonomy (mirrors api/generate.py _format_sse calls) ───
 //
 // The backend sends each event as `event: <name>` + `data: <json>`. We
@@ -137,6 +152,7 @@ export type ReportStreamEvent =
   | { type: "status"; data: StatusEventData }
   | { type: "report_complete"; data: FinalReport }
   | { type: "report_diff"; data: ReportDiff }
+  | { type: "advice_review"; data: AdviceReview }
   | { type: "human_input_required"; data: HumanInputRequiredData }
   | { type: "memory_saved"; data: MemorySavedData }
   | { type: "error"; data: ErrorEventData };

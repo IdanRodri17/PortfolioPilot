@@ -23,6 +23,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type {
   FinalReport,
   ReportDiff,
+  AdviceReview,
   StatusEventData,
   ErrorEventData,
   ProposedMemory,
@@ -50,6 +51,7 @@ export interface UseReportStream {
   statuses: StatusEventData[];
   report: FinalReport | null;
   diff: ReportDiff | null;
+  adviceReview: AdviceReview | null;
   error: ErrorEventData | null;
   review: ReviewState | null;
   savedCount: number | null;
@@ -78,6 +80,7 @@ export function useReportStream(): UseReportStream {
   const [statuses, setStatuses] = useState<StatusEventData[]>([]);
   const [report, setReport] = useState<FinalReport | null>(null);
   const [diff, setDiff] = useState<ReportDiff | null>(null);
+  const [adviceReview, setAdviceReview] = useState<AdviceReview | null>(null);
   const [error, setError] = useState<ErrorEventData | null>(null);
   const [review, setReview] = useState<ReviewState | null>(null);
   const [savedCount, setSavedCount] = useState<number | null>(null);
@@ -98,6 +101,7 @@ export function useReportStream(): UseReportStream {
       setStatuses([]);
       setReport(null);
       setDiff(null);
+      setAdviceReview(null);
       setError(null);
       setReview(null);
       setSavedCount(null);
@@ -124,6 +128,11 @@ export function useReportStream(): UseReportStream {
       // The since-last-report diff follows report_complete on the same stream.
       es.addEventListener("report_diff", (e: MessageEvent) => {
         setDiff(JSON.parse(e.data) as ReportDiff);
+      });
+
+      // The advice report card (V13) also follows on the same stream.
+      es.addEventListener("advice_review", (e: MessageEvent) => {
+        setAdviceReview(JSON.parse(e.data) as AdviceReview);
       });
 
       // The pause: open the modal and close THIS stream. Resume is a new stream.
@@ -225,5 +234,16 @@ export function useReportStream(): UseReportStream {
 
   useEffect(() => close, [close]);
 
-  return { phase, statuses, report, diff, error, review, savedCount, start, resume };
+  return {
+    phase,
+    statuses,
+    report,
+    diff,
+    adviceReview,
+    error,
+    review,
+    savedCount,
+    start,
+    resume,
+  };
 }
