@@ -82,6 +82,7 @@ _STATUS_NODES = {
     "data_ingestion",
     "sentiment_agent",
     "risk_agent",
+    "macro_context_agent",
     "synthesizer",
     "guardrail",
     "memory_extractor",

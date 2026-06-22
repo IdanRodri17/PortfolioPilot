@@ -32,6 +32,7 @@ from app.graph.nodes.data_ingestion import data_ingestion
 from app.graph.nodes.synthesizer import synthesizer
 from app.graph.nodes.sentiment_agent import sentiment_agent
 from app.graph.nodes.risk_agent import risk_agent
+from app.graph.nodes.macro_context_agent import macro_context_agent
 from app.graph.nodes.memory_loader import memory_loader
 from app.graph.nodes.memory_extractor import memory_extractor
 from app.graph.nodes.guardrail import guardrail, route_after_guardrail
@@ -58,32 +59,34 @@ def fan_out_to_agents(state: PortfolioState) -> List[Send]:
     Note on merge:
         All sentiment_agent branches return {"sentiment_findings": [x]}
         and the Annotated[List[dict], add] reducer concatenates them.
-        risk_agent returns {"risk_analysis": {...}} to a single-writer
-        field. By the time synthesizer fires, both fields are fully
-        populated. No explicit wait/join — the edges below provide
-        implicit barrier sync.
+        risk_agent and macro_context_agent each return a dict to their own
+        single-writer field ({"risk_analysis": ...} / {"macro_analysis": ...}).
+        By the time synthesizer fires, all three are fully populated. No
+        explicit wait/join — the edges below provide implicit barrier sync.
     """
     sends: List[Send] = [
         Send("sentiment_agent", {**state, "symbol": symbol})
         for symbol in state["portfolio"].keys()
     ]
     sends.append(Send("risk_agent", state))
+    sends.append(Send("macro_context_agent", state))
     return sends
 
 
 def _build_graph(store: BaseStore | None = None, checkpointer=None):
     """Construct and compile the PortfolioPilot graph.
 
-    Topology (V5):
+    Topology (V11):
         START → memory_loader → data_ingestion → [fan_out_to_agents]
                                                   ├─→ sentiment_agent (× N) ─┐
-                                                  └─→ risk_agent ────────────┴─→ synthesizer → memory_extractor → END
+                                                  ├─→ risk_agent ────────────┤
+                                                  └─→ macro_context_agent ───┴─→ synthesizer → guardrail → … → END
 
-    The list arg ["sentiment_agent", "risk_agent"] on add_conditional_edges
-    is the enumeration of all possible Send targets — required by
-    LangGraph for static graph validation. Adding a new fan-out target
-    in a future version (e.g., a macro_context_agent) requires updating
-    this list too.
+    The list arg on add_conditional_edges enumerates all possible Send targets —
+    required by LangGraph for static graph validation. macro_context_agent (V11)
+    joins sentiment_agent and risk_agent there; any future fan-out target must be
+    added to that list AND given an edge into synthesizer so the implicit barrier
+    waits for it.
 
     store: the PostgresStore handed to compile(). Passing it here is what
     makes LangGraph inject it into any node whose signature requests
@@ -97,6 +100,7 @@ def _build_graph(store: BaseStore | None = None, checkpointer=None):
     builder.add_node("data_ingestion", data_ingestion)
     builder.add_node("sentiment_agent", sentiment_agent)
     builder.add_node("risk_agent", risk_agent)
+    builder.add_node("macro_context_agent", macro_context_agent)
     builder.add_node("synthesizer", synthesizer)
     builder.add_node("memory_extractor", memory_extractor)
     builder.add_node("guardrail", guardrail)
@@ -116,13 +120,15 @@ def _build_graph(store: BaseStore | None = None, checkpointer=None):
     builder.add_conditional_edges(
         "data_ingestion",
         fan_out_to_agents,
-        ["sentiment_agent", "risk_agent"],  # all possible Send targets
+        # all possible Send targets
+        ["sentiment_agent", "risk_agent", "macro_context_agent"],
     )
 
     # Implicit barrier: synthesizer fires only after every Send branch
     # has completed. LangGraph handles the wait; no explicit join.
     builder.add_edge("sentiment_agent", "synthesizer")
     builder.add_edge("risk_agent", "synthesizer")
+    builder.add_edge("macro_context_agent", "synthesizer")
 
     # memory_extractor runs last: it distills durable insights from the
     # finished report and persists them, so the next run's memory_loader
