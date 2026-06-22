@@ -260,3 +260,11 @@ class AdviceReview(BaseModel):
     summary: str = Field(
         default="", description="One-line tally, e.g. '2 good · 1 poor'."
     )
+
+
+class AskRequest(BaseModel):
+    """Body for POST /api/reports/{report_id}/ask — a grounded follow-up (V14)."""
+
+    question: str = Field(
+        min_length=1, description="The user's question about this report."
+    )
