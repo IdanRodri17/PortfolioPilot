@@ -26,6 +26,7 @@ from sqlalchemy.orm import Session
 from app.db.base import get_db
 from app.db.models import User, Portfolio
 from app.schemas.portfolio import PortfolioRequest, PortfolioResponse
+from app.tools.stock_data import StockDataError, lookup_symbol
 
 router = APIRouter()
 
@@ -107,3 +108,41 @@ def get_portfolio(
             detail=f"No portfolio found for user_id '{user_id}'.",
         )
     return _to_response(user, user.portfolio)
+
+
+@router.get(
+    "/api/ticker/validate",
+    summary="Validate a ticker symbol and return its name + price",
+)
+def validate_ticker(symbol: str) -> dict:
+    """Look up one ticker so the editor can validate symbols inline.
+
+    Thin and cached (the cache lives in stock_data.lookup_symbol). No DB, no
+    auth — it exposes only public market data, so it stays a plain sync def.
+
+    Response shapes:
+        - known ticker:   {"found": true,  "symbol", "name", "price"}
+        - unknown ticker: {"found": false, "symbol"}                 (HTTP 200)
+        - fetch failure:  HTTP 502                                   (so the
+          client can tell a typo apart from a provider outage and degrade
+          gracefully — allowing save with a soft warning rather than blocking).
+    """
+    symbol_norm = symbol.strip().upper()
+    if not symbol_norm:
+        return {"found": False, "symbol": symbol_norm}
+
+    try:
+        result = lookup_symbol(symbol_norm)
+    except StockDataError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)
+        ) from exc
+
+    if result is None:
+        return {"found": False, "symbol": symbol_norm}
+    return {
+        "found": True,
+        "symbol": symbol_norm,
+        "name": result["name"],
+        "price": result["price"],
+    }

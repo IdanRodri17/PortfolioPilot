@@ -18,6 +18,8 @@ Concurrency note:
     asyncio.to_thread + asyncio.gather to parallelize multi-asset fetches.
 """
 
+from functools import lru_cache
+
 import yfinance as yf
 
 
@@ -61,3 +63,53 @@ def fetch_stock_data(symbol: str) -> dict:
         "price": round(latest_close, 2),
         "change_24h_percent": round(change_24h_percent, 2),
     }
+
+
+@lru_cache(maxsize=512)
+def _lookup_symbol_cached(symbol: str) -> dict | None:
+    """Cached inner lookup; `symbol` must already be normalized.
+
+    lru_cache memoizes both a hit (the result dict) and a clean miss (None),
+    but does NOT cache exceptions — so a transient fetch failure is retried on
+    the next call rather than being stuck.
+    """
+    ticker = yf.Ticker(symbol)
+    try:
+        # .info is the canonical source for the company name, but it is slow
+        # and rate-limit-prone — which is exactly why this is cached.
+        info = ticker.info
+    except Exception as exc:  # network error, rate-limit, or yfinance internals
+        raise StockDataError(f"Could not look up symbol '{symbol}': {exc}") from exc
+
+    name = info.get("longName") or info.get("shortName")
+    price = (
+        info.get("regularMarketPrice")
+        or info.get("currentPrice")
+        or info.get("previousClose")
+    )
+    if not name or price is None:
+        # yfinance returns a sparse/empty info dict for an unknown ticker.
+        return None
+    return {"name": name, "price": round(float(price), 2)}
+
+
+def lookup_symbol(symbol: str) -> dict | None:
+    """Validate a ticker and return its company name + latest price.
+
+    Args:
+        symbol: Stock ticker, e.g. "AAPL". Case/whitespace insensitive.
+
+    Returns:
+        {"name": str, "price": float} for a known ticker, or None for an
+        unknown one.
+
+    Raises:
+        StockDataError: only on a real fetch failure (network error or
+            rate-limit) — NOT for an unknown ticker, which returns None. This
+            split lets callers distinguish "typo" (block save) from "provider
+            down" (allow save with a soft warning).
+    """
+    symbol = symbol.strip().upper()
+    if not symbol:
+        return None
+    return _lookup_symbol_cached(symbol)
