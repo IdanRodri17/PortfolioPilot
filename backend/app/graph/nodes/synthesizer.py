@@ -42,7 +42,13 @@ from langchain_openai import ChatOpenAI
 
 from app.core.config import get_settings
 from app.graph.state import PortfolioState
-from app.schemas.report import AssetAllocation, FinalReport, ReportBody
+from app.schemas.report import (
+    AssetAllocation,
+    FinalReport,
+    ReportBody,
+    SectorAllocation,
+    SectorConcentration,
+)
 
 SYSTEM_PROMPT = (
     "You are PortfolioPilot, an AI wealth-management assistant. You "
@@ -71,6 +77,9 @@ HUMAN_PROMPT = (
     "{sentiment_findings_block}\n\n"
     "Risk analysis (deterministic, computed by upstream risk_agent):\n"
     "{risk_analysis_block}\n\n"
+    "Sector concentration (deterministic, computed by upstream "
+    "macro_context_agent over the whole portfolio):\n"
+    "{macro_analysis_block}\n\n"
     "What we remember about this user from past sessions (known "
     "preferences and history — NOT new market facts to act on):\n"
     "{long_term_memory_block}\n\n"
@@ -89,9 +98,14 @@ HUMAN_PROMPT = (
     "preferences bear on a recommendation (e.g. a stated reluctance to "
     "reduce a specific holding), reflect that in the rationale — but do "
     "NOT suppress a genuine risk violation because of a preference, and "
-    "do NOT invent preferences beyond those listed above.\n"
+    "do NOT invent preferences beyond those listed above. When the macro "
+    "analysis flags high sector concentration, you may factor trimming the "
+    "dominant sector into the rationale — without inventing numbers.\n"
     "  - summary_narrative: 2-3 paragraphs in plain prose integrating "
-    "the sentiment picture, risk posture, and your recommendations. "
+    "the sentiment picture, risk posture, sector concentration, and your "
+    "recommendations. When the macro analysis flags a dominant sector or "
+    "elevated concentration, name the sector and what it means for "
+    "diversification, using the figures above rather than invented ones. "
     "Where relevant, connect the analysis to the user's remembered "
     "preferences so the report feels personal and continuous with past "
     "sessions. If no preferences are on record, do not mention memory "
@@ -205,6 +219,28 @@ def _format_risk_analysis_block(risk: dict) -> str:
     )
 
 
+def _format_macro_block(macro: dict) -> str:
+    """Render macro_analysis as a readable block, mirroring the risk block.
+
+    Passed to the LLM verbatim so it can narrate the concentration without
+    re-deriving the numbers — the values are deterministic; the model only
+    narrates them.
+    """
+    breakdown = macro.get("sector_breakdown") if macro else None
+    if not breakdown:
+        return "  (sector concentration unavailable — no priced holdings)"
+    sector_lines = "\n".join(
+        f"  - {sector}: {pct}%" for sector, pct in breakdown.items()
+    )
+    return (
+        f"- Dominant sector: {macro.get('dominant_sector')}\n"
+        f"- Concentration: {macro.get('concentration')} "
+        f"(diversification score {macro.get('diversification_score')} / 1.0)\n"
+        f"- Sector breakdown (largest first):\n{sector_lines}\n"
+        f"- Summary: {macro.get('note', '')}"
+    )
+
+
 def _format_long_term_memory_block(memories: List[dict]) -> str:
     """Render retrieved long-term memories as a labeled list for the prompt.
 
@@ -255,6 +291,24 @@ def _build_composition(risk_analysis: dict) -> List[AssetAllocation]:
     ]
 
 
+def _build_sector_concentration(macro: dict) -> SectorConcentration | None:
+    """Build the deterministic sector-concentration block from macro_analysis.
+
+    Returns None when the macro agent produced nothing usable, so the report
+    omits the section (and reports archived before V11 stay None).
+    """
+    if not macro or not macro.get("sector_breakdown"):
+        return None
+    breakdown = macro["sector_breakdown"]  # {sector: pct}, largest first
+    return SectorConcentration(
+        sectors=[SectorAllocation(sector=s, pct=p) for s, p in breakdown.items()],
+        dominant_sector=macro.get("dominant_sector"),
+        concentration=macro.get("concentration", "unknown"),
+        diversification_score=macro.get("diversification_score", 0.0),
+        note=macro.get("note", ""),
+    )
+
+
 def _format_guardrail_feedback_block(feedback: str | None) -> str:
     """Reflexion preamble injected only on a guardrail retry."""
     if not feedback:
@@ -285,6 +339,7 @@ def synthesizer(state: PortfolioState) -> dict:
     market_data = state["market_data"]
     sentiment_findings = state.get("sentiment_findings", [])
     risk_analysis = state["risk_analysis"]
+    macro_analysis = state.get("macro_analysis", {})
     risk_profile = state["risk_profile"]
     long_term_memory = state.get("long_term_memory", [])
 
@@ -301,6 +356,7 @@ def synthesizer(state: PortfolioState) -> dict:
                 sentiment_findings
             ),
             "risk_analysis_block": _format_risk_analysis_block(risk_analysis),
+            "macro_analysis_block": _format_macro_block(macro_analysis),
             "long_term_memory_block": _format_long_term_memory_block(long_term_memory),
             "guardrail_feedback_block": _format_guardrail_feedback_block(
                 state.get("guardrail_feedback")
@@ -311,5 +367,6 @@ def synthesizer(state: PortfolioState) -> dict:
     report = FinalReport(
         **body.model_dump(),
         portfolio_composition=_build_composition(risk_analysis),
+        sector_concentration=_build_sector_concentration(macro_analysis),
     )
     return {"final_report": report}

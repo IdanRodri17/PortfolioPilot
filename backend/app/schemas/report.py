@@ -88,6 +88,43 @@ class AssetAllocation(BaseModel):
     )
 
 
+class SectorAllocation(BaseModel):
+    """One sector's value-weighted slice of the portfolio (V11, deterministic)."""
+
+    sector: str = Field(description="The sector name, e.g. 'Technology'.")
+    pct: float = Field(
+        description="This sector's share of total portfolio value, as a percent (0-100)."
+    )
+
+
+class SectorConcentration(BaseModel):
+    """Whole-portfolio sector concentration (V11).
+
+    Deterministic: computed by macro_context_agent and attached by the
+    synthesizer node — never produced by the LLM. Drives the report's
+    concentration callout + sector breakdown bar.
+    """
+
+    sectors: List[SectorAllocation] = Field(
+        default_factory=list,
+        description="Value-weighted sector breakdown, largest first.",
+    )
+    dominant_sector: str | None = Field(
+        default=None, description="The sector with the largest value share, if any."
+    )
+    concentration: Literal["high", "moderate", "low", "unknown"] = Field(
+        default="unknown",
+        description="Concentration level of the dominant sector.",
+    )
+    diversification_score: float = Field(
+        default=0.0,
+        description="0..1; higher means value is spread across more sectors.",
+    )
+    note: str = Field(
+        default="", description="One-line human-readable summary of the concentration."
+    )
+
+
 class ReportBody(BaseModel):
     """The LLM-authored body of the report.
 
@@ -137,5 +174,13 @@ class FinalReport(ReportBody):
             "Value-weighted allocation per asset, attached deterministically by "
             "the synthesizer node from risk_agent's composition — not LLM-emitted. "
             "Empty when no holdings could be priced."
+        ),
+    )
+    sector_concentration: SectorConcentration | None = Field(
+        default=None,
+        description=(
+            "Value-weighted sector concentration, attached deterministically by "
+            "the synthesizer node from macro_context_agent — not LLM-emitted. None "
+            "for reports archived before V11."
         ),
     )
