@@ -1,13 +1,23 @@
 """
 Output contract for the PortfolioPilot graph.
 
-The FinalReport schema is the target structure every run of the graph
-produces. It is passed to the synthesizer LLM via `.with_structured_output()`,
-which guarantees the response matches this shape at sampling time.
+The report is produced in two layers (V10a):
 
-Field descriptions matter: they are injected into the LLM prompt as part
-of the JSON schema and directly steer the model's output. Treat them as
-prompt engineering, not documentation.
+    ReportBody  — the fields the synthesizer LLM fills, bound via
+        `.with_structured_output(ReportBody)`. Field descriptions matter:
+        they are injected into the LLM prompt as part of the JSON schema
+        and directly steer the model's output. Treat them as prompt
+        engineering, not documentation.
+
+    FinalReport — ReportBody plus `portfolio_composition`, the
+        value-weighted allocation. Composition is DETERMINISTIC: it is
+        computed in Python by risk_agent and attached by the synthesizer
+        node after the LLM call, so exact percentages never pass through
+        the model. FinalReport is the shape archived to `reports.raw_result`
+        and emitted on `report_complete`.
+
+This split honors the project rule that deterministic numbers are computed
+in Python and attached to the payload, never re-emitted by the LLM.
 """
 
 from typing import List, Literal
@@ -61,13 +71,34 @@ class PortfolioValuation(BaseModel):
     )
 
 
-class FinalReport(BaseModel):
-    """The complete report returned by the PortfolioPilot graph.
+class AssetAllocation(BaseModel):
+    """One asset's value-weighted slice of the portfolio (V10a).
 
-    Stable contract across V1 through V6. Earlier versions populate
-    fewer fields meaningfully (V1 has limited market_insights since
-    there is only one asset and no real sentiment search yet), but
-    the shape never changes.
+    Deterministic: derived by the synthesizer node from risk_agent's
+    `composition_pct` + `total_value_usd` — never produced by the LLM. Drives
+    the dashboard allocation donut.
+    """
+
+    asset: str = Field(description="The asset ticker symbol, e.g. 'AAPL'.")
+    pct: float = Field(
+        description="This asset's share of total portfolio value, as a percent (0-100)."
+    )
+    value_usd: float = Field(
+        description="This asset's value in US dollars (its pct of total_usd)."
+    )
+
+
+class ReportBody(BaseModel):
+    """The LLM-authored body of the report.
+
+    Bound to the synthesizer via `.with_structured_output(ReportBody)`, so
+    these field descriptions are the model's format instructions. The
+    deterministic `portfolio_composition` is intentionally NOT here — that
+    keeps allocation percentages from ever passing through the model.
+    `FinalReport` adds it after the LLM call.
+
+    The field shapes are the stable contract carried since V1; V10a only
+    lifted them out of `FinalReport` into a named body.
     """
 
     portfolio_valuation: PortfolioValuation = Field(
@@ -86,4 +117,25 @@ class FinalReport(BaseModel):
         ge=0,
         le=1,
         description="Self-assessed confidence in the report, 0 to 1. Low values indicate insufficient data or conflicting signals.",
+    )
+
+
+class FinalReport(ReportBody):
+    """The complete report returned by the PortfolioPilot graph.
+
+    `ReportBody` (LLM-authored) plus the deterministic value-weighted
+    `portfolio_composition`. This is the shape archived to
+    `reports.raw_result` and streamed on `report_complete`.
+
+    `portfolio_composition` is optional with an empty-list default so reports
+    archived before V10a still deserialize and render.
+    """
+
+    portfolio_composition: List[AssetAllocation] = Field(
+        default_factory=list,
+        description=(
+            "Value-weighted allocation per asset, attached deterministically by "
+            "the synthesizer node from risk_agent's composition — not LLM-emitted. "
+            "Empty when no holdings could be priced."
+        ),
     )

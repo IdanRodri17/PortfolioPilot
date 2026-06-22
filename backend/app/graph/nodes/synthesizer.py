@@ -42,7 +42,7 @@ from langchain_openai import ChatOpenAI
 
 from app.core.config import get_settings
 from app.graph.state import PortfolioState
-from app.schemas.report import FinalReport
+from app.schemas.report import AssetAllocation, FinalReport, ReportBody
 
 SYSTEM_PROMPT = (
     "You are PortfolioPilot, an AI wealth-management assistant. You "
@@ -116,7 +116,11 @@ _prompt = ChatPromptTemplate.from_messages(
 # more nuanced recommendation logic. gpt-4o-mini was insufficiently
 # grounded once the prompt passed ~1500 tokens during V3 dev.
 _llm = ChatOpenAI(model=get_settings().openai_model_synthesizer, temperature=0.3)
-_chain = _prompt | _llm.with_structured_output(FinalReport)
+# Bind the LLM to ReportBody, NOT FinalReport: the model fills the authored
+# fields, and the synthesizer node attaches the deterministic
+# portfolio_composition afterwards (V10a) so exact allocation percentages
+# never pass through the LLM.
+_chain = _prompt | _llm.with_structured_output(ReportBody)
 
 
 # ─── Prompt formatters ──────────────────────────────────────────────
@@ -228,6 +232,29 @@ def _format_long_term_memory_block(memories: List[dict]) -> str:
     )
 
 
+def _build_composition(risk_analysis: dict) -> List[AssetAllocation]:
+    """Build the value-weighted allocation deterministically (V10a).
+
+    risk_agent already computed `composition_pct` ({symbol: percent}) and
+    `total_value_usd` in Python. We derive each asset's dollar value as
+    pct/100 * total — the numbers never route through the LLM. Sorted
+    largest-first so the donut's first slice is the biggest holding. An
+    empty composition (no priced assets) yields [].
+    """
+    composition_pct: Dict[str, float] = risk_analysis.get("composition_pct", {})
+    total_value_usd: float = risk_analysis.get("total_value_usd", 0.0)
+    return [
+        AssetAllocation(
+            asset=symbol,
+            pct=pct,
+            value_usd=round(pct / 100 * total_value_usd, 2),
+        )
+        for symbol, pct in sorted(
+            composition_pct.items(), key=lambda kv: kv[1], reverse=True
+        )
+    ]
+
+
 def _format_guardrail_feedback_block(feedback: str | None) -> str:
     """Reflexion preamble injected only on a guardrail retry."""
     if not feedback:
@@ -250,6 +277,9 @@ def synthesizer(state: PortfolioState) -> dict:
 
     Returns:
         {"final_report": FinalReport}
+
+    The LLM authors the ReportBody; the deterministic value-weighted
+    portfolio_composition is attached here (V10a) from risk_analysis.
     """
     portfolio = state["portfolio"]
     market_data = state["market_data"]
@@ -260,7 +290,7 @@ def synthesizer(state: PortfolioState) -> dict:
 
     missing = set(portfolio.keys()) - set(market_data.keys())
 
-    report: FinalReport = _chain.invoke(
+    body: ReportBody = _chain.invoke(
         {
             "profile_name": risk_profile,
             "profile_description": risk_analysis.get("profile_description", ""),
@@ -276,5 +306,10 @@ def synthesizer(state: PortfolioState) -> dict:
                 state.get("guardrail_feedback")
             ),
         }
+    )
+
+    report = FinalReport(
+        **body.model_dump(),
+        portfolio_composition=_build_composition(risk_analysis),
     )
     return {"final_report": report}
