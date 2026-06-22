@@ -321,7 +321,10 @@ event: status
 data: {"node": "sentiment_agent", "phase": "start", "metadata": {"symbol": "AAPL"}}
 
 event: report_complete
-data: { ...full FinalReport JSON... }
+data: { ...full FinalReport JSON..., "report_id": "..." }
+
+event: report_diff
+data: {"first_report": false, "valuation_delta_pct": 1.8, "sentiment_flips": [...], "recommendations_new": [...], "recommendations_resolved": [...]}
 
 event: error
 data: {"code": "GRAPH_ERROR", "message": "..."}
