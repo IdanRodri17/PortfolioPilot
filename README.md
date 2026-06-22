@@ -94,6 +94,12 @@ The project is built **one version at a time**, each concluded with a Git tag, a
 | **V7** | Multi-channel delivery | Scheduled Telegram + email digests, APScheduler dispatcher, timezone-aware `DeliveryPreference`, idempotent `last_sent_at` dedupe | ✅ Shipped |
 | **V8** | Authentication | Auth.js (NextAuth v5) credential auth, login page, session-derived `user_id`, middleware route protection | ✅ Shipped |
 | **V9** | Backend JWT verification | FastAPI dependency that verifies a session-derived bearer token and derives `user_id` server-side — closes the trusted-query-param gap | ✅ Shipped |
+| **V10** | Allocation + ticker validation | Value-weighted allocation donut (Recharts); inline ticker validation in the editor | ✅ Shipped |
+| **V11** | Concentration agent | `macro_context_agent` — value-weighted sector concentration + diversification score, woven into the report | ✅ Shipped |
+| **V12** | History trend + diff | Portfolio value trend chart on `/history`; "since your last report" diff strip | ✅ Shipped |
+| **V13** | Self-grading advice | Prior recommendations graded against each asset's actual price move since | ✅ Shipped |
+| **V14** | Report chat | Grounded, token-streamed follow-up Q&A over an archived report | ✅ Shipped |
+| **V15** | Demo + sharing | Zero-signup `/demo` guest mode; public `/r/{id}` shareable report + PDF export | ✅ Shipped |
 
 ---
 
@@ -348,16 +354,13 @@ A few deliberate choices that shape the codebase:
 
 ## Roadmap
 
-The next wave makes the AI **visibly smarter** and the app **publishable** — full spec in `PortfolioPilot_Upgrades_BuildSpec.md`.
+The V9–V15 upgrade wave — deeper analysis, a more alive UX, and a publishable
+surface — is **shipped** (see the [Build status](#build-status) table and the
+per-version briefs in `docs/`). It also added one-command Docker for the full
+stack. What remains:
 
-- **V9** ✅ — Backend JWT verification: a FastAPI dependency that verifies a session-derived bearer token and derives `user_id` server-side, closing the trusted-query-param gap (the default-closed baseline the demo/share routes opt out of).
-- **V10** 📋 — Value-weighted allocation donut (Recharts) on the dashboard, plus inline ticker validation (company name + live price) in the portfolio editor.
-- **V11** 📋 — A `macro_context_agent` that analyzes the portfolio as a whole for sector concentration and surfaces a diversification score.
-- **V12** 📋 — Portfolio value trend chart over time, and a "since your last report" diff strip (valuation delta, sentiment flips, resolved/new risk violations).
-- **V13** 📋 — The AI grades its own past advice: each prior recommendation scored against how that asset actually moved since.
-- **V14** 📋 — Chat with your report: grounded, token-streamed follow-up Q&A over a single archived report.
-- **V15** 📋 — Zero-signup guest/demo mode and public shareable report links with PDF export.
-- **V16** 📋 — Stretch shelf: threshold alerts on the delivery scheduler, crypto (CoinGecko) + Israeli-market context, and a streamed report narrative.
+- **V16** 📋 — Stretch shelf: threshold alerts on the delivery scheduler, crypto
+  (CoinGecko) + Israeli-market context, and a streamed report narrative.
 
 ---
 

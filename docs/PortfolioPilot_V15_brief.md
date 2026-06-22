@@ -5,9 +5,9 @@
 > publishing wave: zero-signup trial and free distribution, built on V9's
 > default-closed baseline.
 
-**Status:** Shipped (code complete; public routes + carve-outs verified live).
-The `v15` tag is **pending the live browser smoke test** (a guest generating a
-demo report; opening a share link logged-out; Export-PDF). Code on `main`.
+**Status:** Shipped. Tagged `v15` on `main`. Confirmed live in the browser: the
+guest `/demo` generates a real report, a `/r/{id}` share link renders read-only
+logged-out, and Export-PDF produces a clean light, report-only document.
 
 **Headline:** the app is now publishable. A visitor can try a real report at
 `/demo` with no signup, and any report can be shared as a public read-only link
@@ -25,7 +25,7 @@ default-closed and these routes are *explicit* exceptions.
   report) — no PII to strip.
 - **Frontend:** `tsc` + `eslint` clean.
 
-**Smoke tests — pending your live run (browser):**
+**Smoke tests — confirmed live (browser):**
 
 - **Demo:** incognito → `/demo` → holdings load, **Generate report** streams a
   real report (donut, concentration, diff, advice), no edit/chat/memory/settings.
@@ -88,7 +88,8 @@ stylesheet (zero dependencies).
 
 ## Explicitly deferred
 
-- **Live browser confirmation + `v15` tag.**
+- **Push the `v15` tag.** Created locally after the live smoke test passed;
+  `git push origin v15` (and `--tags`) to publish.
 - **Per-report share token.** Today the uuid4 id *is* the capability. A separate
   revocable `share_token` (and an opt-in "make public" toggle) would be stricter
   privacy than capability-by-id.
@@ -146,7 +147,8 @@ feat(v15a): open a read-only demo path for the guest user
 feat(v15a): read-only guest demo dashboard
 feat(v15b): public shareable report page with PDF export
 docs(v15): add V15 implementation brief
-(tag) v15  — pending live browser smoke test
+fix(v15b): light-themed, report-only PDF export
+(tag) v15
 ```
 
-To reconstruct the V15 baseline at any point once tagged: `git checkout v15`.
+To reconstruct the V15 baseline at any point: `git checkout v15`.
