@@ -23,6 +23,7 @@ import type {
   Sentiment,
   RecommendationAction,
 } from "@/lib/types";
+import { AllocationDonut } from "@/components/AllocationDonut";
 
 const usd = new Intl.NumberFormat("en-US", {
   style: "currency",
@@ -143,6 +144,14 @@ export function FinalReportView({ report }: { report: FinalReport }) {
               <span className="font-mono text-xs text-slate-400">{confPct}%</span>
             </div>
           </div>
+        </div>
+
+        {/* Value-weighted allocation (V10a) */}
+        <div className="mt-5 border-t border-slate-800 pt-4">
+          <p className="mb-3 text-xs uppercase tracking-wider text-slate-500">
+            Allocation
+          </p>
+          <AllocationDonut composition={report.portfolio_composition ?? []} />
         </div>
       </section>
 

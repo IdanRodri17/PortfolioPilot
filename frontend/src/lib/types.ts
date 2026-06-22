@@ -59,12 +59,21 @@ export interface RebalancingRecommendation {
   rationale: string;
 }
 
+export interface AssetAllocation {
+  asset: string;
+  pct: number; // share of total portfolio value, 0..100
+  value_usd: number; // this asset's value in USD
+}
+
 export interface FinalReport {
   portfolio_valuation: PortfolioValuation;
   market_insights: MarketInsight[];
   rebalancing_recommendations: RebalancingRecommendation[];
   summary_narrative: string;
   confidence: number; // 0..1
+  // Value-weighted allocation (V10a). Optional so reports archived before
+  // V10a (which lack the field) still type-check when replayed from history.
+  portfolio_composition?: AssetAllocation[];
 }
 
 // ─── SSE event taxonomy (mirrors api/generate.py _format_sse calls) ───
