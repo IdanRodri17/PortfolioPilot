@@ -91,6 +91,21 @@ export interface FinalReport {
   sector_concentration?: SectorConcentration | null;
 }
 
+// Since-last-report diff (mirrors ReportDiff in schemas/report.py; V12b).
+export interface SentimentFlip {
+  asset: string;
+  previous: Sentiment;
+  current: Sentiment;
+}
+
+export interface ReportDiff {
+  first_report: boolean;
+  valuation_delta_pct: number | null;
+  sentiment_flips: SentimentFlip[];
+  recommendations_new: string[];
+  recommendations_resolved: string[];
+}
+
 // ─── SSE event taxonomy (mirrors api/generate.py _format_sse calls) ───
 //
 // The backend sends each event as `event: <name>` + `data: <json>`. We
@@ -121,6 +136,7 @@ export interface ErrorEventData {
 export type ReportStreamEvent =
   | { type: "status"; data: StatusEventData }
   | { type: "report_complete"; data: FinalReport }
+  | { type: "report_diff"; data: ReportDiff }
   | { type: "human_input_required"; data: HumanInputRequiredData }
   | { type: "memory_saved"; data: MemorySavedData }
   | { type: "error"; data: ErrorEventData };

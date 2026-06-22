@@ -23,8 +23,10 @@ import type {
   Sentiment,
   RecommendationAction,
   SectorConcentration,
+  ReportDiff,
 } from "@/lib/types";
 import { AllocationDonut } from "@/components/AllocationDonut";
+import { SinceLastReport } from "@/components/SinceLastReport";
 
 const usd = new Intl.NumberFormat("en-US", {
   style: "currency",
@@ -185,7 +187,13 @@ function ConcentrationSection({ data }: { data: SectorConcentration }) {
   );
 }
 
-export function FinalReportView({ report }: { report: FinalReport }) {
+export function FinalReportView({
+  report,
+  diff,
+}: {
+  report: FinalReport;
+  diff?: ReportDiff | null;
+}) {
   const val = report.portfolio_valuation;
   const changePositive = val.change_24h_percent >= 0;
   const conf = confidenceMeta(report.confidence);
@@ -201,6 +209,9 @@ export function FinalReportView({ report }: { report: FinalReport }) {
 
   return (
     <div className="space-y-5">
+      {/* Since-last-report diff strip (V12b) — only on a freshly streamed report */}
+      {diff && <SinceLastReport diff={diff} />}
+
       {/* Valuation header */}
       <section className="rounded-xl border border-slate-800 bg-slate-900/60 p-5">
         <div className="flex flex-wrap items-end justify-between gap-4">

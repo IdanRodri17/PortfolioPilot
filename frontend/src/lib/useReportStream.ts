@@ -22,6 +22,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type {
   FinalReport,
+  ReportDiff,
   StatusEventData,
   ErrorEventData,
   ProposedMemory,
@@ -48,6 +49,7 @@ export interface UseReportStream {
   phase: StreamPhase;
   statuses: StatusEventData[];
   report: FinalReport | null;
+  diff: ReportDiff | null;
   error: ErrorEventData | null;
   review: ReviewState | null;
   savedCount: number | null;
@@ -75,6 +77,7 @@ export function useReportStream(): UseReportStream {
   const [phase, setPhase] = useState<StreamPhase>("idle");
   const [statuses, setStatuses] = useState<StatusEventData[]>([]);
   const [report, setReport] = useState<FinalReport | null>(null);
+  const [diff, setDiff] = useState<ReportDiff | null>(null);
   const [error, setError] = useState<ErrorEventData | null>(null);
   const [review, setReview] = useState<ReviewState | null>(null);
   const [savedCount, setSavedCount] = useState<number | null>(null);
@@ -94,6 +97,7 @@ export function useReportStream(): UseReportStream {
       close();
       setStatuses([]);
       setReport(null);
+      setDiff(null);
       setError(null);
       setReview(null);
       setSavedCount(null);
@@ -115,6 +119,11 @@ export function useReportStream(): UseReportStream {
         setReport(JSON.parse(e.data) as FinalReport);
         setPhase("done");
         terminalRef.current = true;
+      });
+
+      // The since-last-report diff follows report_complete on the same stream.
+      es.addEventListener("report_diff", (e: MessageEvent) => {
+        setDiff(JSON.parse(e.data) as ReportDiff);
       });
 
       // The pause: open the modal and close THIS stream. Resume is a new stream.
@@ -216,5 +225,5 @@ export function useReportStream(): UseReportStream {
 
   useEffect(() => close, [close]);
 
-  return { phase, statuses, report, error, review, savedCount, start, resume };
+  return { phase, statuses, report, diff, error, review, savedCount, start, resume };
 }
