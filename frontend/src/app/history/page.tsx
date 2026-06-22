@@ -203,7 +203,7 @@ export default function HistoryPage() {
             <h2 className="mb-3 text-sm font-medium tracking-wide text-slate-400">
               Report · {new Date(selected.generated_at).toLocaleString()}
             </h2>
-            <FinalReportView report={selected.report} />
+            <FinalReportView report={selected.report} reportId={selected.report_id} />
           </div>
         )}
       </div>

@@ -29,6 +29,7 @@ import type {
 import { AllocationDonut } from "@/components/AllocationDonut";
 import { SinceLastReport } from "@/components/SinceLastReport";
 import { AdviceReportCard } from "@/components/AdviceReportCard";
+import { ReportChat } from "@/components/ReportChat";
 
 const usd = new Intl.NumberFormat("en-US", {
   style: "currency",
@@ -193,10 +194,12 @@ export function FinalReportView({
   report,
   diff,
   adviceReview,
+  reportId,
 }: {
   report: FinalReport;
   diff?: ReportDiff | null;
   adviceReview?: AdviceReview | null;
+  reportId?: string | null;
 }) {
   const val = report.portfolio_valuation;
   const changePositive = val.change_24h_percent >= 0;
@@ -310,6 +313,9 @@ export function FinalReportView({
           ))}
         </div>
       </section>
+
+      {/* Grounded report chat (V14) — needs the report_id */}
+      {reportId && <ReportChat reportId={reportId} />}
     </div>
   );
 }

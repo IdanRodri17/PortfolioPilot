@@ -50,6 +50,7 @@ export interface UseReportStream {
   phase: StreamPhase;
   statuses: StatusEventData[];
   report: FinalReport | null;
+  reportId: string | null;
   diff: ReportDiff | null;
   adviceReview: AdviceReview | null;
   error: ErrorEventData | null;
@@ -79,6 +80,7 @@ export function useReportStream(): UseReportStream {
   const [phase, setPhase] = useState<StreamPhase>("idle");
   const [statuses, setStatuses] = useState<StatusEventData[]>([]);
   const [report, setReport] = useState<FinalReport | null>(null);
+  const [reportId, setReportId] = useState<string | null>(null);
   const [diff, setDiff] = useState<ReportDiff | null>(null);
   const [adviceReview, setAdviceReview] = useState<AdviceReview | null>(null);
   const [error, setError] = useState<ErrorEventData | null>(null);
@@ -100,6 +102,7 @@ export function useReportStream(): UseReportStream {
       close();
       setStatuses([]);
       setReport(null);
+      setReportId(null);
       setDiff(null);
       setAdviceReview(null);
       setError(null);
@@ -120,7 +123,9 @@ export function useReportStream(): UseReportStream {
       // still follow in this same stream. Mark terminal so a later close reads
       // as clean.
       es.addEventListener("report_complete", (e: MessageEvent) => {
-        setReport(JSON.parse(e.data) as FinalReport);
+        const data = JSON.parse(e.data) as FinalReport & { report_id?: string };
+        setReport(data);
+        setReportId(data.report_id ?? null); // carried for the report chat (V14)
         setPhase("done");
         terminalRef.current = true;
       });
@@ -238,6 +243,7 @@ export function useReportStream(): UseReportStream {
     phase,
     statuses,
     report,
+    reportId,
     diff,
     adviceReview,
     error,

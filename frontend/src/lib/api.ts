@@ -89,6 +89,60 @@ export async function getReportSeries(
   return res.json();
 }
 
+/**
+ * Ask a grounded question about one report; stream the answer token-by-token.
+ * POST carries the question in the body, so we read the SSE response with a
+ * stream reader (EventSource is GET-only). onToken fires per token; resolves on
+ * the `done` event, throws on `error` or transport failure.
+ */
+export async function askReport(
+  reportId: string,
+  question: string,
+  onToken: (text: string) => void,
+): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/reports/${reportId}/ask`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ question }),
+  });
+  if (!res.ok || !res.body) {
+    throw new Error(`askReport failed: HTTP ${res.status}`);
+  }
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    let sep: number;
+    while ((sep = buffer.indexOf("\n\n")) !== -1) {
+      const block = buffer.slice(0, sep);
+      buffer = buffer.slice(sep + 2);
+      let event = "message";
+      const dataLines: string[] = [];
+      for (const line of block.split("\n")) {
+        if (line.startsWith("event:")) event = line.slice(6).trim();
+        else if (line.startsWith("data:")) dataLines.push(line.slice(5).trim());
+      }
+      if (dataLines.length === 0) continue;
+      let data: unknown;
+      try {
+        data = JSON.parse(dataLines.join("\n"));
+      } catch {
+        continue;
+      }
+      if (event === "token") {
+        onToken((data as { text: string }).text);
+      } else if (event === "done") {
+        return;
+      } else if (event === "error") {
+        throw new Error((data as { message?: string }).message ?? "ask failed");
+      }
+    }
+  }
+}
+
 // (uses the same API_BASE constant your other helpers use)
 
 export async function getDeliveryPreferences(

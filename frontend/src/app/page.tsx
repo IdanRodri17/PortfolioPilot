@@ -25,8 +25,18 @@ import { useUserId } from "@/lib/useUserId";
 export default function DashboardPage() {
   const { userId, loading } = useUserId();
   const { data: session } = useSession();
-  const { phase, statuses, report, diff, adviceReview, error, review, resume, start } =
-    useReportStream();
+  const {
+    phase,
+    statuses,
+    report,
+    reportId,
+    diff,
+    adviceReview,
+    error,
+    review,
+    resume,
+    start,
+  } = useReportStream();
 
   return (
     <main className="min-h-screen bg-slate-950 text-slate-100">
@@ -95,7 +105,12 @@ export default function DashboardPage() {
             )}
 
             {report ? (
-              <FinalReportView report={report} diff={diff} adviceReview={adviceReview} />
+              <FinalReportView
+                report={report}
+                diff={diff}
+                adviceReview={adviceReview}
+                reportId={reportId}
+              />
             ) : (
               phase !== "streaming" && (
                 <p className="rounded-xl border border-dashed border-slate-800 px-4 py-10 text-center text-sm text-slate-600">
