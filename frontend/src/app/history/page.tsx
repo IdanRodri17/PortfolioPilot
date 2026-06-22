@@ -137,15 +137,21 @@ export default function HistoryPage() {
   return (
     <main className="min-h-screen bg-slate-950 text-slate-100">
       <div className="mx-auto max-w-3xl px-6 py-10">
-        <Link href="/" className="text-sm text-slate-500 transition-colors hover:text-slate-300">
-          ← Dashboard
-        </Link>
-        <h1 className="mt-3 text-2xl font-semibold tracking-tight">Report history</h1>
-        <p className="mt-1 text-sm text-slate-500">Past analyses, newest first. Click one to view it.</p>
+        <div className="no-print">
+          <Link href="/" className="text-sm text-slate-500 transition-colors hover:text-slate-300">
+            ← Dashboard
+          </Link>
+          <h1 className="mt-3 text-2xl font-semibold tracking-tight">Report history</h1>
+          <p className="mt-1 text-sm text-slate-500">Past analyses, newest first. Click one to view it.</p>
+        </div>
 
         {load === "loading" && <p className="mt-8 text-sm text-slate-600">Loading history…</p>}
         {load === "error" && <p className="mt-8 text-sm text-rose-400">Could not load history.</p>}
-        {load === "ready" && <ValueTrendChart series={series} />}
+        {load === "ready" && (
+          <div className="no-print">
+            <ValueTrendChart series={series} />
+          </div>
+        )}
         {load === "ready" && reports.length === 0 && (
           <p className="mt-8 rounded-xl border border-dashed border-slate-800 px-4 py-10 text-center text-sm text-slate-600">
             No reports yet. Generate one from the dashboard.
@@ -153,7 +159,7 @@ export default function HistoryPage() {
         )}
 
         {load === "ready" && reports.length > 0 && (
-          <ul className="mt-8 space-y-2">
+          <ul className="no-print mt-8 space-y-2">
             {reports.map((r) => {
               const isSel = selected?.report_id === r.report_id;
               const change = r.change_24h_percent ?? 0;

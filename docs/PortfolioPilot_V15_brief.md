@@ -80,7 +80,7 @@ stylesheet (zero dependencies).
 |---|---|---|---|
 | Demo chat | (unspecified) | **disabled** in /demo (no reportId passed) | ask costs an LLM call and is owner-gated; keep the guest path read+generate only |
 | Demo interrupt | "auto-decline/hide the memory modal" | the demo just **doesn't render** the modal; the report arrives before the interrupt, the graph is left paused (harmless, nothing saved) | resume is auth-gated; not worth a carve-out for a guest |
-| PDF styling | "clean Save-as-PDF" | keeps the **dark** report styling (`print-color-adjust: exact`) + hides chrome | a full light-theme print restyle is a lot of overrides for little gain; the dark export matches the app |
+| PDF styling | "clean Save-as-PDF" | a **light** print theme (slate→ink overrides via substring class selectors) that prints the **report only** — app chrome hidden via `.no-print` on each page | a dark screen-dump prints poorly; the light restyle is cheap and yields a real-looking document |
 | PII strip | "strip if the payload carries email/PII" | **no strip needed** — `user_id` is the slug `idan_demo`, not the email | confirmed against the users table; revisit if signup ever sets id = email |
 | `v15` tag | tag on ship | deferred until the live browser test | "no tag without a passing end-to-end check" |
 

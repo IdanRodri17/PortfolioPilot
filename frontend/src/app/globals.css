@@ -25,14 +25,66 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
-/* V15b: clean "Save as PDF" via the browser. Hide interactive chrome (marked
-   .no-print) and keep the dark report styling in the export. */
+/* V15b: clean "Save as PDF" via the browser. The app is dark-themed; for print
+   we flip to a crisp light document (readable, ink-friendly) and hide all
+   interactive chrome marked .no-print. Screen view is untouched. */
 @media print {
+  @page {
+    margin: 1.4cm;
+  }
+
   .no-print {
     display: none !important;
   }
+
+  /* Light canvas. */
+  html,
   body {
+    background: #ffffff !important;
+    color: #0f172a !important;
+  }
+
+  /* Inline fills (donut slices, legend swatches, meter bars) must still print. */
+  * {
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
+  }
+
+  /* Dark surfaces -> white cards with hairline borders. */
+  [class*="bg-slate-9"],
+  [class*="bg-slate-8"] {
+    background: transparent !important;
+  }
+  [class*="border-slate-"] {
+    border-color: #e2e8f0 !important;
+  }
+
+  /* Slate text -> readable grays. */
+  [class*="text-slate-1"],
+  [class*="text-slate-2"],
+  [class*="text-slate-3"] {
+    color: #0f172a !important;
+  }
+  [class*="text-slate-4"],
+  [class*="text-slate-5"],
+  [class*="text-slate-6"] {
+    color: #475569 !important;
+  }
+
+  /* Keep accent meaning, but at print-readable contrast on white. */
+  [class*="text-emerald-"] {
+    color: #047857 !important;
+  }
+  [class*="text-rose-"] {
+    color: #be123c !important;
+  }
+  [class*="text-amber-"] {
+    color: #b45309 !important;
+  }
+
+  /* Don't split a card across a page break where it can be helped. */
+  section,
+  [class*="rounded-xl"] {
+    break-inside: avoid;
   }
 }

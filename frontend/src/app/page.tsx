@@ -41,7 +41,7 @@ export default function DashboardPage() {
   return (
     <main className="min-h-screen bg-slate-950 text-slate-100">
       <div className="mx-auto max-w-5xl px-6 py-10">
-        <header className="mb-8 flex items-center justify-between gap-4">
+        <header className="no-print mb-8 flex items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl font-semibold tracking-tight">PortfolioPilot</h1>
             <p className="mt-1 text-sm text-slate-500">AI portfolio analysis</p>
@@ -84,7 +84,7 @@ export default function DashboardPage() {
 
         <div className="grid gap-6 lg:grid-cols-[18rem_1fr]">
           {/* Left: what you hold */}
-          <aside>
+          <aside className="no-print">
             {userId ? (
               <PortfolioOverview userId={userId} />
             ) : (
@@ -96,7 +96,9 @@ export default function DashboardPage() {
 
           {/* Right: the analysis flow */}
           <div className="space-y-6">
-            <LiveStatusFeed statuses={statuses} phase={phase} />
+            <div className="no-print">
+              <LiveStatusFeed statuses={statuses} phase={phase} />
+            </div>
 
             {error && (
               <p className="rounded-lg bg-rose-500/10 px-4 py-3 text-sm text-rose-300 ring-1 ring-rose-500/20">
