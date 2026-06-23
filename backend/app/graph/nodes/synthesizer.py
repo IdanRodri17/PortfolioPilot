@@ -290,7 +290,7 @@ def _format_long_term_memory_block(memories: List[dict]) -> str:
     )
 
 
-def _build_composition(risk_analysis: dict) -> List[AssetAllocation]:
+def _build_composition(risk_analysis: dict, market_data: dict) -> List[AssetAllocation]:
     """Build the value-weighted allocation deterministically (V10a).
 
     risk_agent already computed `composition_pct` ({symbol: percent}) and
@@ -306,7 +306,9 @@ def _build_composition(risk_analysis: dict) -> List[AssetAllocation]:
             asset=symbol,
             pct=pct,
             value_usd=round(pct / 100 * total_value_usd, 2),
-            currency="ILS" if is_tase(symbol) else "USD",
+            # Prices are normalized to USD upstream (TASE converted), so the
+            # composition is single-currency and the percentages are correct.
+            currency=market_data.get(symbol, {}).get("currency", "USD"),
         )
         for symbol, pct in sorted(
             composition_pct.items(), key=lambda kv: kv[1], reverse=True
@@ -392,7 +394,7 @@ def synthesizer(state: PortfolioState) -> dict:
 
     report = FinalReport(
         **body.model_dump(),
-        portfolio_composition=_build_composition(risk_analysis),
+        portfolio_composition=_build_composition(risk_analysis, market_data),
         sector_concentration=_build_sector_concentration(macro_analysis),
     )
     return {"final_report": report}

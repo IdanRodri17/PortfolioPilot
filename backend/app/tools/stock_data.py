@@ -77,6 +77,22 @@ def _normalize_money(currency_code: str | None, price: float) -> tuple[str, floa
     return "USD", round(price, 2)
 
 
+@lru_cache(maxsize=1)
+def _ils_per_usd() -> float:
+    """ILS per 1 USD (yfinance 'ILS=X'), for converting TASE values into the
+    USD base so a mixed-currency portfolio aggregates correctly. Cached per
+    process; falls back to a sane default if the rate can't be fetched."""
+    try:
+        hist = yf.Ticker("ILS=X").history(period="5d")
+        if not hist.empty:
+            rate = float(hist["Close"].iloc[-1])
+            if rate > 0:
+                return rate
+    except Exception:
+        pass
+    return 3.7
+
+
 def fetch_crypto_data(symbol: str) -> dict:
     """Fetch latest USD price + 24h change for a crypto symbol via CoinGecko.
 
@@ -145,17 +161,19 @@ def fetch_stock_data(symbol: str) -> dict:
     previous_close = float(history["Close"].iloc[-2])
     change_24h_percent = ((latest_close - previous_close) / previous_close) * 100
 
-    # TASE (.TA) is quoted in agorot (1/100 ILS) — normalize to shekels + tag
-    # the currency so the UI can show ₪ instead of $ (V16).
+    # TASE (.TA) is quoted in agorot (1/100 ₪). Convert agorot -> ILS -> USD so
+    # the whole portfolio aggregates in one base currency (USD); a mixed ILS+USD
+    # portfolio would otherwise count shekels as dollars. The editor still shows
+    # the native ₪ per-share price via lookup_symbol.
     if is_tase(symbol):
-        currency, price = "ILS", latest_close / 100
+        price = (latest_close / 100) / _ils_per_usd()
     else:
-        currency, price = "USD", latest_close
+        price = latest_close
 
     return {
         "price": round(price, 2),
         "change_24h_percent": round(change_24h_percent, 2),
-        "currency": currency,
+        "currency": "USD",
     }
 
 
