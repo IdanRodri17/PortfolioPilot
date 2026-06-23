@@ -23,6 +23,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { getPortfolio, upsertPortfolio, validateTicker } from "@/lib/api";
+import { formatMoney } from "@/lib/money";
 import type { RiskProfile } from "@/lib/types";
 
 import { useUserId } from "@/lib/useUserId";
@@ -42,7 +43,7 @@ type SaveState =
 // Per-symbol ticker validation status, keyed by normalized symbol.
 type TickerStatus =
   | { state: "checking" }
-  | { state: "valid"; name: string; price: number }
+  | { state: "valid"; name: string; price: number; currency: string }
   | { state: "invalid" }
   | { state: "error" }; // couldn't verify (network) — non-blocking
 
@@ -53,7 +54,8 @@ function rowsToAssets(rows: Row[]): { assets?: Record<string, number>; error?: s
     const symbol = r.symbol.trim().toUpperCase();
     if (!symbol) return { error: "Every asset needs a symbol." };
     if (symbol in assets) return { error: `Duplicate symbol: ${symbol}.` };
-    const qty = Number(r.quantity);
+    // Tolerate a comma decimal separator (common on Israeli/EU keyboards).
+    const qty = Number(r.quantity.trim().replace(",", "."));
     if (!Number.isFinite(qty) || qty <= 0) {
       return { error: `Quantity for ${symbol} must be greater than 0.` };
     }
@@ -70,7 +72,7 @@ function TickerStatusLine({ status }: { status?: TickerStatus }) {
   if (status.state === "valid")
     return (
       <p className="mt-1 pl-1 text-xs text-emerald-400">
-        {status.name} · ${status.price.toFixed(2)}
+        {status.name} · {formatMoney(status.price, status.currency)}
       </p>
     );
   if (status.state === "invalid")
@@ -147,7 +149,12 @@ export default function PortfolioEditorPage() {
             setValidations((v) => ({
               ...v,
               [sym]: r.found
-                ? { state: "valid", name: r.name!, price: r.price! }
+                ? {
+                    state: "valid",
+                    name: r.name!,
+                    price: r.price!,
+                    currency: r.currency ?? "USD",
+                  }
                 : { state: "invalid" },
             })),
           )
@@ -261,9 +268,12 @@ export default function PortfolioEditorPage() {
 
             {/* Assets */}
             <section>
-              <h2 className="mb-3 text-sm font-medium tracking-wide text-slate-300">
+              <h2 className="mb-1 text-sm font-medium tracking-wide text-slate-300">
                 Assets
               </h2>
+              <p className="mb-3 text-xs text-slate-500">
+                Quantities can be fractional — enter 0.5, 1.25, etc.
+              </p>
               <div className="space-y-3">
                 {rows.map((row) => {
                   const sym = row.symbol.trim().toUpperCase();
@@ -287,10 +297,9 @@ export default function PortfolioEditorPage() {
                         <input
                           value={row.quantity}
                           onChange={(e) => updateRow(row.id, "quantity", e.target.value)}
-                          type="number"
-                          min="0"
-                          step="any"
-                          placeholder="0"
+                          type="text"
+                          inputMode="decimal"
+                          placeholder="0.5"
                           className="w-32 rounded-lg border border-slate-800 bg-slate-900 px-3 py-2 font-mono text-sm text-slate-100 placeholder:text-slate-600 focus:border-emerald-600 focus:outline-none"
                         />
                         <button

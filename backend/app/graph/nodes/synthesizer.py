@@ -306,6 +306,7 @@ def _build_composition(risk_analysis: dict) -> List[AssetAllocation]:
             asset=symbol,
             pct=pct,
             value_usd=round(pct / 100 * total_value_usd, 2),
+            currency="ILS" if is_tase(symbol) else "USD",
         )
         for symbol, pct in sorted(
             composition_pct.items(), key=lambda kv: kv[1], reverse=True

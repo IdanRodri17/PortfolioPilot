@@ -217,6 +217,7 @@ export interface TickerValidation {
   symbol: string;
   name?: string;
   price?: number;
+  currency?: string; // "USD" or "ILS" (TASE)
 }
 
 export async function validateTicker(symbol: string): Promise<TickerValidation> {

@@ -62,6 +62,21 @@ def is_tase(symbol: str) -> bool:
     return symbol.strip().upper().endswith(".TA")
 
 
+def _normalize_money(currency_code: str | None, price: float) -> tuple[str, float]:
+    """Map a quoted price to a display currency + amount (V16).
+
+    Yahoo quotes TASE in agorot ('ILA' = 1/100 of a shekel), so agorot is
+    converted to shekels and tagged ILS. ILS stays ILS; everything else falls
+    back to USD (the app's base currency).
+    """
+    code = (currency_code or "USD").upper()
+    if code == "ILA":
+        return "ILS", round(price / 100, 2)
+    if code == "ILS":
+        return "ILS", round(price, 2)
+    return "USD", round(price, 2)
+
+
 def fetch_crypto_data(symbol: str) -> dict:
     """Fetch latest USD price + 24h change for a crypto symbol via CoinGecko.
 
@@ -94,6 +109,7 @@ def fetch_crypto_data(symbol: str) -> dict:
     return {
         "price": round(float(price), 2),
         "change_24h_percent": round(float(change), 2),
+        "currency": "USD",
     }
 
 
@@ -129,9 +145,17 @@ def fetch_stock_data(symbol: str) -> dict:
     previous_close = float(history["Close"].iloc[-2])
     change_24h_percent = ((latest_close - previous_close) / previous_close) * 100
 
+    # TASE (.TA) is quoted in agorot (1/100 ILS) — normalize to shekels + tag
+    # the currency so the UI can show ₪ instead of $ (V16).
+    if is_tase(symbol):
+        currency, price = "ILS", latest_close / 100
+    else:
+        currency, price = "USD", latest_close
+
     return {
-        "price": round(latest_close, 2),
+        "price": round(price, 2),
         "change_24h_percent": round(change_24h_percent, 2),
+        "currency": currency,
     }
 
 
@@ -152,15 +176,17 @@ def _lookup_symbol_cached(symbol: str) -> dict | None:
         raise StockDataError(f"Could not look up symbol '{symbol}': {exc}") from exc
 
     name = info.get("longName") or info.get("shortName")
-    price = (
+    raw_price = (
         info.get("regularMarketPrice")
         or info.get("currentPrice")
         or info.get("previousClose")
     )
-    if not name or price is None:
+    if not name or raw_price is None:
         # yfinance returns a sparse/empty info dict for an unknown ticker.
         return None
-    return {"name": name, "price": round(float(price), 2)}
+    # Use the quoted currency (agorot-aware) so the editor shows ₪ for TASE.
+    currency, price = _normalize_money(info.get("currency"), float(raw_price))
+    return {"name": name, "price": price, "currency": currency}
 
 
 def lookup_symbol(symbol: str) -> dict | None:
@@ -186,7 +212,11 @@ def lookup_symbol(symbol: str) -> dict | None:
         # Known crypto -> price via CoinGecko; a fetch failure raises (caller
         # soft-warns), never a "not found" since it's in our map.
         data = fetch_crypto_data(symbol)
-        return {"name": CRYPTO_IDS[symbol].replace("-", " ").title(), "price": data["price"]}
+        return {
+            "name": CRYPTO_IDS[symbol].replace("-", " ").title(),
+            "price": data["price"],
+            "currency": "USD",
+        }
     return _lookup_symbol_cached(symbol)
 
 

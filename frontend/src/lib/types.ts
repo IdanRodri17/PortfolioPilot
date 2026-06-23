@@ -62,7 +62,8 @@ export interface RebalancingRecommendation {
 export interface AssetAllocation {
   asset: string;
   pct: number; // share of total portfolio value, 0..100
-  value_usd: number; // this asset's value in USD
+  value_usd: number; // this asset's value in its own currency
+  currency?: string; // "USD" or "ILS" (TASE); optional for pre-V16 reports
 }
 
 export interface SectorAllocation {

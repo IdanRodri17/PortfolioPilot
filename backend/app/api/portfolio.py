@@ -157,4 +157,5 @@ def validate_ticker(symbol: str) -> dict:
         "symbol": symbol_norm,
         "name": result["name"],
         "price": result["price"],
+        "currency": result.get("currency", "USD"),
     }

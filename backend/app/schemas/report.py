@@ -84,7 +84,11 @@ class AssetAllocation(BaseModel):
         description="This asset's share of total portfolio value, as a percent (0-100)."
     )
     value_usd: float = Field(
-        description="This asset's value in US dollars (its pct of total_usd)."
+        description="This asset's value in its own currency (USD, or ILS for TASE)."
+    )
+    currency: str = Field(
+        default="USD",
+        description="Display currency for value_usd — 'USD' or 'ILS' (TASE). V16.",
     )
 
 

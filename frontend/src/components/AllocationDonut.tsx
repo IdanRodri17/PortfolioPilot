@@ -16,12 +16,7 @@
 
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 import type { AssetAllocation } from "@/lib/types";
-
-const usd = new Intl.NumberFormat("en-US", {
-  style: "currency",
-  currency: "USD",
-  maximumFractionDigits: 0,
-});
+import { formatMoney } from "@/lib/money";
 
 // Largest holdings get the brighter emeralds; the tail fades into slate so the
 // chart reads as "your concentration" rather than a categorical rainbow.
@@ -48,7 +43,7 @@ function DonutTooltip({ active, payload }: DonutTooltipProps) {
     <div className="rounded-md border border-slate-700 bg-slate-900/95 px-3 py-2 text-xs shadow-lg">
       <span className="font-mono text-slate-200">{slice.asset}</span>{" "}
       <span className="text-slate-400">
-        {usd.format(slice.value_usd)} · {slice.pct}%
+        {formatMoney(slice.value_usd, slice.currency ?? "USD")} · {slice.pct}%
       </span>
     </div>
   );
@@ -70,6 +65,10 @@ export function AllocationDonut({
   // Center total equals the sum of the slices, so the parts always reconcile
   // to the whole shown in the hole.
   const total = composition.reduce((sum, slice) => sum + slice.value_usd, 0);
+  // If every slice shares a currency, show the total in it; a mixed portfolio
+  // falls back to USD (a naive sum — true cross-currency FX is out of scope).
+  const currencies = new Set(composition.map((s) => s.currency ?? "USD"));
+  const totalCurrency = currencies.size === 1 ? [...currencies][0] : "USD";
 
   return (
     <div className="flex flex-col items-center gap-4 sm:flex-row">
@@ -100,7 +99,7 @@ export function AllocationDonut({
             Total
           </span>
           <span className="text-base font-semibold text-slate-100">
-            {usd.format(total)}
+            {formatMoney(total, totalCurrency, { compact: true })}
           </span>
         </div>
       </div>
@@ -115,7 +114,7 @@ export function AllocationDonut({
             <span className="font-mono text-slate-200">{slice.asset}</span>
             <span className="text-slate-400">{slice.pct}%</span>
             <span className="ml-auto font-mono text-xs text-slate-500">
-              {usd.format(slice.value_usd)}
+              {formatMoney(slice.value_usd, slice.currency ?? "USD")}
             </span>
           </li>
         ))}

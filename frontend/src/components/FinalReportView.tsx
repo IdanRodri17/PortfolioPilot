@@ -31,11 +31,7 @@ import { AllocationDonut } from "@/components/AllocationDonut";
 import { SinceLastReport } from "@/components/SinceLastReport";
 import { AdviceReportCard } from "@/components/AdviceReportCard";
 import { ReportChat } from "@/components/ReportChat";
-
-const usd = new Intl.NumberFormat("en-US", {
-  style: "currency",
-  currency: "USD",
-});
+import { formatMoney } from "@/lib/money";
 
 function formatPercent(value: number): string {
   const sign = value > 0 ? "+" : "";
@@ -217,6 +213,11 @@ export function FinalReportView({
   }
 
   const val = report.portfolio_valuation;
+  // Headline currency follows the holdings: all-TASE -> ₪, otherwise $ (a mixed
+  // portfolio's total is a naive sum — true FX is out of scope).
+  const composition = report.portfolio_composition ?? [];
+  const ccys = new Set(composition.map((c) => c.currency ?? "USD"));
+  const heroCurrency = ccys.size === 1 ? [...ccys][0] : "USD";
   const changePositive = val.change_24h_percent >= 0;
   const conf = confidenceMeta(report.confidence);
   const confPct = Math.round(report.confidence * 100);
@@ -260,7 +261,7 @@ export function FinalReportView({
               Portfolio value
             </p>
             <p className="mt-1 text-3xl font-semibold text-slate-100">
-              {usd.format(val.total_usd)}
+              {formatMoney(val.total_usd, heroCurrency)}
             </p>
             <p
               className={`mt-1 text-sm font-medium ${changePositive ? "text-emerald-400" : "text-rose-400"}`}
