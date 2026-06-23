@@ -69,7 +69,7 @@ narrative weaves it in. Off by default (empty block → silent).
 | Area | Choice | Why |
 |---|---|---|
 | Crypto symbol→id | a **curated map** (BTC→bitcoin, …) | CoinGecko prices by id and tickers are ambiguous across coins; a map is reliable + extensible vs. a fuzzy `/coins/list` lookup |
-| TASE | priced via yfinance `.TA`, **no FX conversion** | mixing ILS and USD into one total needs real FX handling — its own feature; faking it would mis-state the total. Recognized + surfaced, not converted |
+| TASE | priced via yfinance `.TA`; **per-asset shown in ILS** (agorot→shekels), but **no cross-currency total FX** | Yahoo quotes TASE in agorot ('ILA' = 1/100 ₪); we normalize to shekels and tag the currency so the editor, allocation donut, and headline render ₪ correctly. Summing ILS+USD into one portfolio total still needs real FX — deferred (mixed totals are a naive sum, labeled $) |
 | Bank of Israel rate | a **config value** woven into the narrative | a reliable knob beats scraping an obscure API; it's contextual prose, not a deterministic report field |
 | Frontend | **none** | crypto flows through the existing report UI once priced; validation picks it up via the backend lookup |
 | `v16` tag | deferred | pending the live browser check |
@@ -129,8 +129,14 @@ narrative weaves it in. Off by default (empty block → silent).
 feat(v16): crypto holdings via CoinGecko + activate the crypto cap
 feat(v16): Israeli-market context (Bank of Israel rate + TASE)
 docs(v16): add V16 implementation brief
+feat(v16): show TASE holdings in ILS (agorot-aware) + accept fractional shares
 (tag) v16  — pending live browser smoke test
 ```
+
+**Post-review additions** (after the first live check): per-asset **ILS display**
+for TASE (agorot-aware ₪, via a `formatMoney` helper in the editor / donut /
+headline) and **fractional share quantities** in the editor (decimal +
+comma-tolerant input; the backend already stored floats).
 
 To reconstruct the V16 baseline at any point once tagged: `git checkout v16`.
 With V16, the entire V9–V16 upgrade wave is shipped.
