@@ -69,7 +69,7 @@ narrative weaves it in. Off by default (empty block → silent).
 | Area | Choice | Why |
 |---|---|---|
 | Crypto symbol→id | a **curated map** (BTC→bitcoin, …) | CoinGecko prices by id and tickers are ambiguous across coins; a map is reliable + extensible vs. a fuzzy `/coins/list` lookup |
-| TASE | priced via yfinance `.TA`; **per-asset shown in ILS** (agorot→shekels), but **no cross-currency total FX** | Yahoo quotes TASE in agorot ('ILA' = 1/100 ₪); we normalize to shekels and tag the currency so the editor, allocation donut, and headline render ₪ correctly. Summing ILS+USD into one portfolio total still needs real FX — deferred (mixed totals are a naive sum, labeled $) |
+| TASE | per-share price shown in **₪** (editor); portfolio values **converted to USD** (live `ILS=X` FX) | Yahoo quotes TASE in agorot ('ILA' = 1/100 ₪). The editor shows the native ₪ price; for the portfolio, values are converted agorot→ILS→USD so a mixed ILS+USD total and its percentages are correct (single base currency). The FX rate is cached per process with a fallback. |
 | Bank of Israel rate | a **config value** woven into the narrative | a reliable knob beats scraping an obscure API; it's contextual prose, not a deterministic report field |
 | Frontend | **none** | crypto flows through the existing report UI once priced; validation picks it up via the backend lookup |
 | `v16` tag | deferred | pending the live browser check |
@@ -79,8 +79,9 @@ narrative weaves it in. Off by default (empty block → silent).
 ## Explicitly deferred
 
 - **Live confirmation + `v16` tag** → then the V9–V16 wave is 100% complete.
-- **Multi-currency / FX.** Proper ILS↔USD (and other) conversion so TASE and
-  foreign holdings sum correctly into one total. The real "Israeli market" depth.
+- **Broader FX.** TASE→USD conversion now lands (live `ILS=X`); remaining: other
+  non-USD markets, an FX-aware 24h change, and a user-selectable base currency
+  (e.g. an all-Israeli portfolio shown entirely in ₪).
 - **The other V16 stretch items:** threshold alerts on the delivery scheduler;
   streaming the report narrative.
 - **Crypto price caching / batching.** `fetch_crypto_data` is one call per coin;
@@ -130,13 +131,19 @@ feat(v16): crypto holdings via CoinGecko + activate the crypto cap
 feat(v16): Israeli-market context (Bank of Israel rate + TASE)
 docs(v16): add V16 implementation brief
 feat(v16): show TASE holdings in ILS (agorot-aware) + accept fractional shares
+docs(v16): note the ILS-display + fractional-share additions
+fix(v16): convert TASE values to USD so mixed-currency totals are correct
 (tag) v16  — pending live browser smoke test
 ```
 
-**Post-review additions** (after the first live check): per-asset **ILS display**
-for TASE (agorot-aware ₪, via a `formatMoney` helper in the editor / donut /
-headline) and **fractional share quantities** in the editor (decimal +
-comma-tolerant input; the backend already stored floats).
+**Post-review additions** (after live testing):
+- The editor shows TASE **per-share prices in ₪** (agorot-aware) via a
+  `formatMoney` helper.
+- **Fractional share quantities** in the editor (decimal + comma-tolerant; the
+  backend already stored floats).
+- TASE portfolio values are **converted to USD** (live `ILS=X` rate) so a
+  mixed-currency total and its percentages are correct — a real ₪9,595 TEVA
+  holding now contributes ~$3,200, not "$9,595".
 
 To reconstruct the V16 baseline at any point once tagged: `git checkout v16`.
 With V16, the entire V9–V16 upgrade wave is shipped.
