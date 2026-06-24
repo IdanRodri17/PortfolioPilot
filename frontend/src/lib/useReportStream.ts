@@ -29,6 +29,7 @@ import type {
   ProposedMemory,
   HumanInputRequiredData,
   MemorySavedData,
+  NarrativeTokenData,
 } from "@/lib/types";
 import { getApiToken, authHeaders } from "@/lib/api";
 
@@ -57,6 +58,11 @@ export interface UseReportStream {
   error: ErrorEventData | null;
   review: ReviewState | null;
   savedCount: number | null;
+  // V19: the summary as it types in, and whether it's still typing. While
+  // narrativeStreaming is true the report view shows streamedNarrative; once
+  // false it falls back to the authoritative report.summary_narrative.
+  streamedNarrative: string;
+  narrativeStreaming: boolean;
   start: (userId: string) => void;
   resume: (threadId: string, approvedIndices: number[]) => Promise<void>;
 }
@@ -87,6 +93,8 @@ export function useReportStream(): UseReportStream {
   const [error, setError] = useState<ErrorEventData | null>(null);
   const [review, setReview] = useState<ReviewState | null>(null);
   const [savedCount, setSavedCount] = useState<number | null>(null);
+  const [streamedNarrative, setStreamedNarrative] = useState("");
+  const [narrativeStreaming, setNarrativeStreaming] = useState(false);
 
   const esRef = useRef<EventSource | null>(null);
   // True once a report/review/error has been seen — tells the transport
@@ -109,6 +117,8 @@ export function useReportStream(): UseReportStream {
       setError(null);
       setReview(null);
       setSavedCount(null);
+      setStreamedNarrative("");
+      setNarrativeStreaming(false);
       setPhase("streaming");
       terminalRef.current = false;
 
@@ -142,6 +152,23 @@ export function useReportStream(): UseReportStream {
         setReportId(data.report_id ?? null); // carried for the report chat (V14)
         setPhase("done");
         terminalRef.current = true;
+        // V19: the narrative replay (narrative_token events) follows; show the
+        // typing indicator until narrative_done. The full text is already in
+        // `data.summary_narrative` as the fallback once streaming stops.
+        setStreamedNarrative("");
+        setNarrativeStreaming(true);
+      });
+
+      // V19: the summary types in word-by-word after report_complete. Guard
+      // against a stale event from a superseded stream (re-Generate mid-typing)
+      // appending into the new run's accumulator.
+      es.addEventListener("narrative_token", (e: MessageEvent) => {
+        if (esRef.current !== es) return;
+        const data = JSON.parse(e.data) as NarrativeTokenData;
+        setStreamedNarrative((prev) => prev + data.text);
+      });
+      es.addEventListener("narrative_done", () => {
+        setNarrativeStreaming(false);
       });
 
       // The since-last-report diff follows report_complete on the same stream.
@@ -163,6 +190,7 @@ export function useReportStream(): UseReportStream {
         });
         setPhase("awaiting_review");
         terminalRef.current = true;
+        setNarrativeStreaming(false);
         close();
       });
 
@@ -174,6 +202,7 @@ export function useReportStream(): UseReportStream {
         }
         setPhase("error");
         terminalRef.current = true;
+        setNarrativeStreaming(false);
         close();
       });
 
@@ -182,6 +211,8 @@ export function useReportStream(): UseReportStream {
         if (terminalRef.current) {
           // Report (or review/error) already handled — this is the stream
           // closing normally (e.g. the no-proposals path ends at report_complete).
+          // If it closed mid-narrative, stop typing and fall back to the full text.
+          setNarrativeStreaming(false);
           close();
           return;
         }
@@ -266,6 +297,8 @@ export function useReportStream(): UseReportStream {
     error,
     review,
     savedCount,
+    streamedNarrative,
+    narrativeStreaming,
     start,
     resume,
   };

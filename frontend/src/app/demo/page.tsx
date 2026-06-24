@@ -22,8 +22,17 @@ import { PortfolioOverview } from "@/components/PortfolioOverview";
 const DEMO_USER = "idan_demo";
 
 export default function DemoPage() {
-  const { phase, statuses, report, diff, adviceReview, error, start } =
-    useReportStream();
+  const {
+    phase,
+    statuses,
+    report,
+    diff,
+    adviceReview,
+    error,
+    streamedNarrative,
+    narrativeStreaming,
+    start,
+  } = useReportStream();
 
   return (
     <main className="min-h-screen bg-slate-950 text-slate-100">
@@ -71,7 +80,13 @@ export default function DemoPage() {
 
             {report ? (
               // No reportId passed -> the report chat stays hidden in the demo.
-              <FinalReportView report={report} diff={diff} adviceReview={adviceReview} />
+              <FinalReportView
+                report={report}
+                diff={diff}
+                adviceReview={adviceReview}
+                streamingNarrative={streamedNarrative}
+                narrativeStreaming={narrativeStreaming}
+              />
             ) : (
               phase !== "streaming" && (
                 <p className="rounded-xl border border-dashed border-slate-800 px-4 py-10 text-center text-sm text-slate-600">

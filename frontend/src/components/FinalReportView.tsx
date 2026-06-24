@@ -194,11 +194,18 @@ export function FinalReportView({
   diff,
   adviceReview,
   reportId,
+  streamingNarrative,
+  narrativeStreaming,
 }: {
   report: FinalReport;
   diff?: ReportDiff | null;
   adviceReview?: AdviceReview | null;
   reportId?: string | null;
+  // V19: live narrative streaming. While narrativeStreaming is true the summary
+  // renders from streamingNarrative (typing); otherwise it uses the report's
+  // authoritative summary_narrative (history, share, or once typing finishes).
+  streamingNarrative?: string;
+  narrativeStreaming?: boolean;
 }) {
   const [copied, setCopied] = useState(false);
   const [base, setBase] = useBaseCurrency();
@@ -236,7 +243,13 @@ export function FinalReportView({
   const insights = [...report.market_insights].sort((a, b) =>
     a.asset.localeCompare(b.asset),
   );
-  const narrativeParagraphs = report.summary_narrative
+  // V19: render the streamed text while it types in; otherwise the full,
+  // authoritative narrative (the streamed and final text are identical once done).
+  const liveNarrative = narrativeStreaming === true;
+  const narrativeSource = liveNarrative
+    ? streamingNarrative ?? ""
+    : report.summary_narrative;
+  const narrativeParagraphs = narrativeSource
     .split("\n\n")
     .filter((p) => p.trim().length > 0);
 
@@ -378,9 +391,20 @@ export function FinalReportView({
           Summary
         </h2>
         <div className="space-y-3">
+          {narrativeParagraphs.length === 0 && liveNarrative && (
+            <p className="no-print text-sm italic leading-relaxed text-slate-500">
+              Writing summary
+              <span className="ml-0.5 animate-pulse text-emerald-400">▋</span>
+            </p>
+          )}
           {narrativeParagraphs.map((p, i) => (
             <p key={i} className="text-sm leading-relaxed text-slate-400">
               {p}
+              {liveNarrative && i === narrativeParagraphs.length - 1 && (
+                <span className="no-print ml-0.5 inline-block animate-pulse text-emerald-400">
+                  ▋
+                </span>
+              )}
             </p>
           ))}
         </div>

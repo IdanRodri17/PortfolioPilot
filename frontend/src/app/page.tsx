@@ -32,6 +32,8 @@ export default function DashboardPage() {
     reportId,
     diff,
     adviceReview,
+    streamedNarrative,
+    narrativeStreaming,
     error,
     review,
     resume,
@@ -112,6 +114,8 @@ export default function DashboardPage() {
                 diff={diff}
                 adviceReview={adviceReview}
                 reportId={reportId}
+                streamingNarrative={streamedNarrative}
+                narrativeStreaming={narrativeStreaming}
               />
             ) : (
               phase !== "streaming" && (

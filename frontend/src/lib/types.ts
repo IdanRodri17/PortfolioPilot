@@ -92,6 +92,13 @@ export interface FinalReport {
   sector_concentration?: SectorConcentration | null;
 }
 
+// SSE narrative streaming (V19): after report_complete, the backend replays the
+// summary word-by-word — each narrative_token carries one chunk; narrative_done
+// (no payload) signals the typing is finished.
+export interface NarrativeTokenData {
+  text: string;
+}
+
 // Since-last-report diff (mirrors ReportDiff in schemas/report.py; V12b).
 export interface SentimentFlip {
   asset: string;

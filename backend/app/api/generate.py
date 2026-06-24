@@ -37,10 +37,15 @@ Why report persistence is best-effort:
     it fails (DB blip), we log and still emit report_complete — filing a
     copy must never deny the user a result they already have (pattern #22).
 
-Why we don't emit `token` events: the synthesizer uses
-    .with_structured_output(FinalReport), so the model emits one JSON/
-    tool-call object; streaming its tokens yields partial JSON, not prose.
-    The streaming that carries the demo is the burst of `status` events.
+Why the narrative is REPLAY-streamed (V19): the synthesizer uses
+    .with_structured_output(FinalReport), so the model emits one JSON/tool-call
+    object — streaming its raw tokens yields partial JSON, not prose. So instead
+    of a second (unvalidated, costly) LLM call, we let the graph finish, let the
+    guardrail validate the report, then re-emit the FINAL summary_narrative
+    word-by-word as `narrative_token` events (ending with `narrative_done`) so
+    the UI types it out. It's a faithful replay of the exact approved text — no
+    extra cost, no divergence, guardrail intact. The per-node `status` burst
+    still carries the earlier phases of the run.
 
 Why sentiment start/end are paired by run_id:
     Each parallel sentiment_agent Send branch is one runnable invocation,
@@ -50,8 +55,10 @@ Why sentiment start/end are paired by run_id:
     run_id -> symbol on start and look it up on end.
 """
 
+import asyncio
 import json
 import logging
+import re
 from datetime import date
 from uuid import uuid4
 
@@ -108,6 +115,37 @@ def _format_sse(event_type: str, data: dict) -> str:
     """Serialize one SSE message: an `event:` line, a `data:` JSON line,
     terminated by a blank line per the SSE spec."""
     return f"event: {event_type}\ndata: {json.dumps(data)}\n\n"
+
+
+async def _stream_narrative(narrative: str):
+    """Replay a finished narrative as paced SSE tokens (V19).
+
+    The summary_narrative is already produced by the synthesizer, validated by
+    the guardrail, and persisted — here we re-emit it word-by-word so the UI
+    "types" it out like the V14 chat. This is a faithful REPLAY, not a second
+    LLM call: no extra latency or cost, and it's the exact text the guardrail
+    approved. Each chunk carries a word plus its surrounding whitespace, so
+    leading whitespace and paragraph breaks (\\n\\n) survive and concatenation
+    reconstructs the original EXACTLY — the client's fallback to the full
+    summary_narrative is then byte-identical to what streamed. Pacing adapts to
+    length so even a long summary types out in roughly 3s. Always ends with
+    `narrative_done` (even for an empty narrative) so the client can reliably
+    stop the typing indicator.
+    """
+    # Guard empty AND whitespace-only (the latter is truthy but yields no chunks,
+    # which would make the delay division below a ZeroDivisionError).
+    if not narrative or not narrative.strip():
+        yield _format_sse("narrative_done", {})
+        return
+    chunks = re.findall(r"\s*\S+\s*", narrative)
+    delay = max(0.015, min(0.045, 3.0 / len(chunks)))
+    try:
+        for chunk in chunks:
+            yield _format_sse("narrative_token", {"text": chunk})
+            await asyncio.sleep(delay)
+    except Exception:  # noqa: BLE001 — a replay hiccup must never sink a delivered report
+        logger.exception("narrative replay failed")
+    yield _format_sse("narrative_done", {})
 
 
 def _persist_report(
@@ -357,6 +395,11 @@ async def _report_event_stream(
     yield _format_sse(
         "advice_review", _compute_advice_review(prev_report, prev_generated_at)
     )
+
+    # V19: type the report's summary out, word-by-word. A faithful replay of the
+    # guardrail-validated narrative already in `payload` — not a second LLM call.
+    async for narrative_event in _stream_narrative(payload.get("summary_narrative", "")):
+        yield narrative_event
 
     # V6: did the run pause at human_review's interrupt? Surface the proposals.
     try:
