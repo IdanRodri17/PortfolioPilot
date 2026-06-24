@@ -27,7 +27,7 @@ from app.api.deps import require_owner_or_demo, require_user
 from app.db.base import get_db
 from app.db.models import User, Portfolio
 from app.schemas.portfolio import PortfolioRequest, PortfolioResponse
-from app.tools.stock_data import StockDataError, lookup_symbol
+from app.tools.stock_data import StockDataError, lookup_symbol, usd_ils_rate
 
 router = APIRouter()
 
@@ -159,3 +159,13 @@ def validate_ticker(symbol: str) -> dict:
         "price": result["price"],
         "currency": result.get("currency", "USD"),
     }
+
+
+@router.get(
+    "/api/fx/usd-ils",
+    summary="USD->ILS rate (ILS per 1 USD), for the base-currency display toggle",
+)
+def usd_ils() -> dict:
+    """Public: the rate the frontend uses to display USD-canonical report values
+    in shekels when the user picks an ILS base currency (V17). No user data."""
+    return {"ils_per_usd": usd_ils_rate()}

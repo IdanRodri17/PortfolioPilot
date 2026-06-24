@@ -93,6 +93,12 @@ def _ils_per_usd() -> float:
     return 3.7
 
 
+def usd_ils_rate() -> float:
+    """Public accessor for the USD->ILS rate (ILS per 1 USD) — used by the
+    base-currency display toggle (V17)."""
+    return _ils_per_usd()
+
+
 def fetch_crypto_data(symbol: str) -> dict:
     """Fetch latest USD price + 24h change for a crypto symbol via CoinGecko.
 

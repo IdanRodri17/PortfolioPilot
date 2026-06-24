@@ -16,7 +16,7 @@
 
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 import type { AssetAllocation } from "@/lib/types";
-import { formatMoney } from "@/lib/money";
+import { displayMoney, type BaseCurrency } from "@/lib/money";
 
 // Largest holdings get the brighter emeralds; the tail fades into slate so the
 // chart reads as "your concentration" rather than a categorical rainbow.
@@ -33,27 +33,32 @@ const PALETTE = [
 
 interface DonutTooltipProps {
   active?: boolean;
-  payload?: { payload: AssetAllocation }[];
-}
-
-function DonutTooltip({ active, payload }: DonutTooltipProps) {
-  if (!active || !payload?.length) return null;
-  const slice = payload[0].payload;
-  return (
-    <div className="rounded-md border border-slate-700 bg-slate-900/95 px-3 py-2 text-xs shadow-lg">
-      <span className="font-mono text-slate-200">{slice.asset}</span>{" "}
-      <span className="text-slate-400">
-        {formatMoney(slice.value_usd, slice.currency ?? "USD")} · {slice.pct}%
-      </span>
-    </div>
-  );
+  payload?: readonly { payload?: AssetAllocation }[];
 }
 
 export function AllocationDonut({
   composition,
+  base,
+  ilsPerUsd,
 }: {
   composition: AssetAllocation[];
+  base: BaseCurrency;
+  ilsPerUsd: number | null;
 }) {
+  // Inline so it closes over the chosen base + FX rate (V17).
+  function renderTooltip(props: DonutTooltipProps) {
+    const slice = props.active ? props.payload?.[0]?.payload : undefined;
+    if (!slice) return null;
+    return (
+      <div className="rounded-md border border-slate-700 bg-slate-900/95 px-3 py-2 text-xs shadow-lg">
+        <span className="font-mono text-slate-200">{slice.asset}</span>{" "}
+        <span className="text-slate-400">
+          {displayMoney(slice.value_usd, base, ilsPerUsd)} · {slice.pct}%
+        </span>
+      </div>
+    );
+  }
+
   if (composition.length === 0) {
     return (
       <p className="rounded-lg bg-slate-800/40 px-3 py-2 text-sm text-slate-400 ring-1 ring-slate-700/50">
@@ -65,10 +70,6 @@ export function AllocationDonut({
   // Center total equals the sum of the slices, so the parts always reconcile
   // to the whole shown in the hole.
   const total = composition.reduce((sum, slice) => sum + slice.value_usd, 0);
-  // If every slice shares a currency, show the total in it; a mixed portfolio
-  // falls back to USD (a naive sum — true cross-currency FX is out of scope).
-  const currencies = new Set(composition.map((s) => s.currency ?? "USD"));
-  const totalCurrency = currencies.size === 1 ? [...currencies][0] : "USD";
 
   return (
     <div className="flex flex-col items-center gap-4 sm:flex-row">
@@ -91,7 +92,7 @@ export function AllocationDonut({
                 <Cell key={slice.asset} fill={PALETTE[i % PALETTE.length]} />
               ))}
             </Pie>
-            <Tooltip content={<DonutTooltip />} />
+            <Tooltip content={renderTooltip} />
           </PieChart>
         </ResponsiveContainer>
         <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
@@ -99,7 +100,7 @@ export function AllocationDonut({
             Total
           </span>
           <span className="text-base font-semibold text-slate-100">
-            {formatMoney(total, totalCurrency, { compact: true })}
+            {displayMoney(total, base, ilsPerUsd, { compact: true })}
           </span>
         </div>
       </div>
@@ -114,7 +115,7 @@ export function AllocationDonut({
             <span className="font-mono text-slate-200">{slice.asset}</span>
             <span className="text-slate-400">{slice.pct}%</span>
             <span className="ml-auto font-mono text-xs text-slate-500">
-              {formatMoney(slice.value_usd, slice.currency ?? "USD")}
+              {displayMoney(slice.value_usd, base, ilsPerUsd)}
             </span>
           </li>
         ))}

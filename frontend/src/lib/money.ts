@@ -21,3 +21,20 @@ export function formatMoney(
     return `${amount}`;
   }
 }
+
+// User-selectable report base currency (V17). Report values are USD-canonical;
+// this converts a USD amount to the chosen base for display only (percentages
+// are unaffected). Falls back to USD if the ILS rate isn't available.
+export type BaseCurrency = "USD" | "ILS";
+
+export function displayMoney(
+  usdAmount: number,
+  base: BaseCurrency = "USD",
+  ilsPerUsd: number | null = null,
+  opts: { compact?: boolean } = {},
+): string {
+  if (base === "ILS" && ilsPerUsd) {
+    return formatMoney(usdAmount * ilsPerUsd, "ILS", opts);
+  }
+  return formatMoney(usdAmount, "USD", opts);
+}

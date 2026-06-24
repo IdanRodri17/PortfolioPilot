@@ -16,7 +16,7 @@
  * feed's in-flight state, so it never appears here where nothing is running.
  */
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type {
   FinalReport,
   MarketInsight,
@@ -31,7 +31,9 @@ import { AllocationDonut } from "@/components/AllocationDonut";
 import { SinceLastReport } from "@/components/SinceLastReport";
 import { AdviceReportCard } from "@/components/AdviceReportCard";
 import { ReportChat } from "@/components/ReportChat";
-import { formatMoney } from "@/lib/money";
+import { displayMoney } from "@/lib/money";
+import { useBaseCurrency } from "@/lib/useBaseCurrency";
+import { getFxRate } from "@/lib/api";
 
 function formatPercent(value: number): string {
   const sign = value > 0 ? "+" : "";
@@ -199,6 +201,19 @@ export function FinalReportView({
   reportId?: string | null;
 }) {
   const [copied, setCopied] = useState(false);
+  const [base, setBase] = useBaseCurrency();
+  const [ilsPerUsd, setIlsPerUsd] = useState<number | null>(null);
+
+  // Fetch the USD->ILS rate once so the ₪ base can be selected (V17).
+  useEffect(() => {
+    let active = true;
+    getFxRate()
+      .then((r) => active && setIlsPerUsd(r.ils_per_usd))
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, []);
 
   function shareLink() {
     if (!reportId) return;
@@ -213,11 +228,6 @@ export function FinalReportView({
   }
 
   const val = report.portfolio_valuation;
-  // Headline currency follows the holdings: all-TASE -> ₪, otherwise $ (a mixed
-  // portfolio's total is a naive sum — true FX is out of scope).
-  const composition = report.portfolio_composition ?? [];
-  const ccys = new Set(composition.map((c) => c.currency ?? "USD"));
-  const heroCurrency = ccys.size === 1 ? [...ccys][0] : "USD";
   const changePositive = val.change_24h_percent >= 0;
   const conf = confidenceMeta(report.confidence);
   const confPct = Math.round(report.confidence * 100);
@@ -234,6 +244,30 @@ export function FinalReportView({
     <div className="space-y-5">
       {/* Share / export (V15b) — hidden in the printed PDF */}
       <div className="no-print flex items-center justify-end gap-2">
+        <div className="inline-flex overflow-hidden rounded-lg border border-slate-700 text-xs">
+          <button
+            onClick={() => setBase("USD")}
+            className={`px-2.5 py-1.5 transition-colors ${
+              base === "USD"
+                ? "bg-slate-800 text-slate-100"
+                : "text-slate-400 hover:text-slate-200"
+            }`}
+          >
+            $ USD
+          </button>
+          <button
+            onClick={() => setBase("ILS")}
+            disabled={ilsPerUsd == null}
+            title={ilsPerUsd == null ? "Exchange rate unavailable" : "Show in shekels"}
+            className={`px-2.5 py-1.5 transition-colors disabled:opacity-40 ${
+              base === "ILS"
+                ? "bg-slate-800 text-slate-100"
+                : "text-slate-400 hover:text-slate-200"
+            }`}
+          >
+            ₪ ILS
+          </button>
+        </div>
         {reportId && (
           <button
             onClick={shareLink}
@@ -261,7 +295,7 @@ export function FinalReportView({
               Portfolio value
             </p>
             <p className="mt-1 text-3xl font-semibold text-slate-100">
-              {formatMoney(val.total_usd, heroCurrency)}
+              {displayMoney(val.total_usd, base, ilsPerUsd)}
             </p>
             <p
               className={`mt-1 text-sm font-medium ${changePositive ? "text-emerald-400" : "text-rose-400"}`}
@@ -291,7 +325,11 @@ export function FinalReportView({
           <p className="mb-3 text-xs uppercase tracking-wider text-slate-500">
             Allocation
           </p>
-          <AllocationDonut composition={report.portfolio_composition ?? []} />
+          <AllocationDonut
+            composition={report.portfolio_composition ?? []}
+            base={base}
+            ilsPerUsd={ilsPerUsd}
+          />
         </div>
       </section>
 

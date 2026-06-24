@@ -220,6 +220,13 @@ export interface TickerValidation {
   currency?: string; // "USD" or "ILS" (TASE)
 }
 
+// Public: USD->ILS rate for the base-currency display toggle (V17). No auth.
+export async function getFxRate(): Promise<{ ils_per_usd: number }> {
+  const res = await fetch(`${API_BASE}/api/fx/usd-ils`);
+  if (!res.ok) throw new Error(`getFxRate failed: HTTP ${res.status}`);
+  return res.json();
+}
+
 export async function validateTicker(symbol: string): Promise<TickerValidation> {
   const res = await fetch(
     `${API_BASE}/api/ticker/validate?symbol=${encodeURIComponent(symbol)}`,
