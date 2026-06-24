@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
   LineChart,
@@ -106,6 +106,10 @@ export default function HistoryPage() {
   const [series, setSeries] = useState<ReportSeriesPoint[]>([]);
   const [selected, setSelected] = useState<ReportDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [detailError, setDetailError] = useState<string | null>(null);
+  // The opened report renders below a potentially long list — scroll it into
+  // view so a click always visibly lands somewhere.
+  const detailRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!userId) return;
@@ -125,14 +129,23 @@ export default function HistoryPage() {
 
   async function openReport(id: string) {
     setDetailLoading(true);
+    setDetailError(null);
     try {
       setSelected(await getReport(id));
     } catch {
       setSelected(null);
+      setDetailError("Could not load this report. Please try again.");
     } finally {
       setDetailLoading(false);
     }
   }
+
+  // Bring the opened report into view once it has rendered.
+  useEffect(() => {
+    if (selected && detailRef.current) {
+      detailRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [selected]);
 
   return (
     <main className="min-h-screen bg-slate-950 text-slate-100">
@@ -204,11 +217,22 @@ export default function HistoryPage() {
         )}
 
         {detailLoading && <p className="mt-6 text-sm text-slate-600">Loading report…</p>}
+        {detailError && !detailLoading && (
+          <p className="mt-6 text-sm text-rose-400">{detailError}</p>
+        )}
         {selected && !detailLoading && (
-          <div className="mt-8">
-            <h2 className="mb-3 text-sm font-medium tracking-wide text-slate-400">
-              Report · {new Date(selected.generated_at).toLocaleString()}
-            </h2>
+          <div ref={detailRef} className="mt-8 scroll-mt-6">
+            <div className="no-print mb-3 flex items-center justify-between">
+              <h2 className="text-sm font-medium tracking-wide text-slate-400">
+                Report · {new Date(selected.generated_at).toLocaleString()}
+              </h2>
+              <button
+                onClick={() => setSelected(null)}
+                className="text-xs text-slate-500 transition-colors hover:text-slate-300"
+              >
+                Close ✕
+              </button>
+            </div>
             <FinalReportView report={selected.report} reportId={selected.report_id} />
           </div>
         )}
