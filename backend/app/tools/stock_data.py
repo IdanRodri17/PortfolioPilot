@@ -18,6 +18,7 @@ Concurrency note:
     asyncio.to_thread + asyncio.gather to parallelize multi-asset fetches.
 """
 
+import time
 from datetime import date, timedelta
 from functools import lru_cache
 
@@ -77,20 +78,35 @@ def _normalize_money(currency_code: str | None, price: float) -> tuple[str, floa
     return "USD", round(price, 2)
 
 
-@lru_cache(maxsize=1)
+_FX_FALLBACK = 3.7
+_FX_TTL_SECONDS = 3600.0
+# {"rate": float, "ts": monotonic-seconds}. Only *successful* fetches are stored,
+# so a transient failure (e.g. a network hiccup at startup) can never poison the
+# value for the life of the process — the next call simply retries.
+_fx_cache: dict[str, float] = {}
+
+
 def _ils_per_usd() -> float:
     """ILS per 1 USD (yfinance 'ILS=X'), for converting TASE values into the
-    USD base so a mixed-currency portfolio aggregates correctly. Cached per
-    process; falls back to a sane default if the rate can't be fetched."""
+    USD base so a mixed-currency portfolio aggregates correctly. Cached for an
+    hour on success only; on failure it reuses the last good rate (even if stale)
+    or a sane default, without caching it so a recovered network is picked up."""
+    now = time.monotonic()
+    rate = _fx_cache.get("rate")
+    ts = _fx_cache.get("ts", 0.0)
+    if rate is not None and (now - ts) < _FX_TTL_SECONDS:
+        return rate
     try:
         hist = yf.Ticker("ILS=X").history(period="5d")
         if not hist.empty:
-            rate = float(hist["Close"].iloc[-1])
-            if rate > 0:
-                return rate
+            fresh = float(hist["Close"].iloc[-1])
+            if fresh > 0:
+                _fx_cache["rate"] = fresh
+                _fx_cache["ts"] = now
+                return fresh
     except Exception:
         pass
-    return 3.7
+    return rate if rate is not None else _FX_FALLBACK
 
 
 def usd_ils_rate() -> float:
