@@ -100,6 +100,7 @@ The project is built **one version at a time**, each concluded with a Git tag, a
 | **V13** | Self-grading advice | Prior recommendations graded against each asset's actual price move since | ✅ Shipped |
 | **V14** | Report chat | Grounded, token-streamed follow-up Q&A over an archived report | ✅ Shipped |
 | **V15** | Demo + sharing | Zero-signup `/demo` guest mode; public `/r/{id}` shareable report + PDF export | ✅ Shipped |
+| **V16** | Crypto + Israeli market | CoinGecko crypto pricing + active crypto cap; TASE in ₪ (agorot-aware) aggregated to USD; Bank of Israel rate context | ✅ Shipped |
 
 ---
 
@@ -354,13 +355,14 @@ A few deliberate choices that shape the codebase:
 
 ## Roadmap
 
-The V9–V15 upgrade wave — deeper analysis, a more alive UX, and a publishable
-surface — is **shipped** (see the [Build status](#build-status) table and the
-per-version briefs in `docs/`). It also added one-command Docker for the full
-stack. What remains:
+The V9–V16 upgrade wave — deeper analysis, a more alive UX, a publishable
+surface, and crypto + Israeli-market support — is **shipped** (see the
+[Build status](#build-status) table and the per-version briefs in `docs/`). It
+also added one-command Docker for the full stack. Remaining optional stretch ideas:
 
-- **V16** 📋 — Stretch shelf: threshold alerts on the delivery scheduler, crypto
-  (CoinGecko) + Israeli-market context, and a streamed report narrative.
+- **Threshold alerts** on the delivery scheduler (sentiment-flip / %-move rules).
+- **A streamed report narrative** (V14 already streams the report chat).
+- **Broader FX** — non-USD markets beyond TASE, and a user-selectable base currency.
 
 ---
 

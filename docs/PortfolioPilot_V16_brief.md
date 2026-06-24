@@ -4,11 +4,10 @@
 > Captures the V16 stretch item that was picked up: crypto holdings (CoinGecko)
 > + Israeli-market context. This completes the entire V9–V16 upgrade wave.
 
-**Status:** Shipped (code complete; crypto integration verified live). The `v16`
-tag is **pending the live browser smoke test** (a portfolio with a crypto
-holding generating a report; the crypto-cap violation; optionally the Bank of
-Israel line). Code on `main`. Backend-only — no frontend changes (crypto flows
-through the existing donut/composition/report once priced).
+**Status:** Shipped. Tagged `v16` on `main`. Confirmed live: crypto pricing + the
+activated crypto cap, agorot-aware **₪** display for TASE in the editor,
+fractional share quantities, and correct **USD aggregation** for a mixed ILS+USD
+portfolio (a ₪9,595 TEVA holding now contributes ~$3,200, not "$9,595").
 
 **Headline:** the app now prices **crypto** (BTC, ETH, …) via CoinGecko
 alongside stocks, activates the long-dormant `max_crypto_pct` risk check, and
@@ -26,7 +25,7 @@ rate) to the report — the personal differentiator for an Israeli investor.
   Israeli-context block renders/omits correctly and the prompt template composes.
 - **Compile/import** clean across all touched modules.
 
-**Smoke tests — pending your live run (browser):**
+**Smoke tests — confirmed live (browser):**
 
 - Add a crypto holding (e.g. `BTC`) in the editor → it validates ("Bitcoin · $…")
   → save → **Generate report**: BTC is priced and appears as a donut slice; an
@@ -78,7 +77,7 @@ narrative weaves it in. Off by default (empty block → silent).
 
 ## Explicitly deferred
 
-- **Live confirmation + `v16` tag** → then the V9–V16 wave is 100% complete.
+- *(Done — V16 confirmed, tagged, and pushed; the V9–V16 wave is complete.)*
 - **Broader FX.** TASE→USD conversion now lands (live `ILS=X`); remaining: other
   non-USD markets, an FX-aware 24h change, and a user-selectable base currency
   (e.g. an all-Israeli portfolio shown entirely in ₪).
@@ -133,7 +132,9 @@ docs(v16): add V16 implementation brief
 feat(v16): show TASE holdings in ILS (agorot-aware) + accept fractional shares
 docs(v16): note the ILS-display + fractional-share additions
 fix(v16): convert TASE values to USD so mixed-currency totals are correct
-(tag) v16  — pending live browser smoke test
+docs(v16): record the TASE->USD FX conversion
+docs(v16): mark V16 shipped
+(tag) v16
 ```
 
 **Post-review additions** (after live testing):
@@ -145,5 +146,5 @@ fix(v16): convert TASE values to USD so mixed-currency totals are correct
   mixed-currency total and its percentages are correct — a real ₪9,595 TEVA
   holding now contributes ~$3,200, not "$9,595".
 
-To reconstruct the V16 baseline at any point once tagged: `git checkout v16`.
+To reconstruct the V16 baseline at any point: `git checkout v16`.
 With V16, the entire V9–V16 upgrade wave is shipped.
