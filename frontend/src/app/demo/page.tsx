@@ -60,41 +60,44 @@ export default function DemoPage() {
           </button>
         </header>
 
-        <div className="grid gap-6 lg:grid-cols-[18rem_1fr]">
-          {/* Left: the curated holdings (read-only) */}
-          <aside className="no-print">
-            <PortfolioOverview userId={DEMO_USER} />
-          </aside>
+        <div className="space-y-6">
+          {/* Top band: holdings + live pipeline side-by-side; report spans full width below */}
+          <div className="grid items-stretch gap-6 lg:grid-cols-[18rem_1fr]">
+            {/* Left: the curated holdings (read-only); fills the equal-height cell */}
+            <aside className="no-print [&>*]:h-full">
+              <PortfolioOverview userId={DEMO_USER} />
+            </aside>
 
-          {/* Right: the analysis flow */}
-          <div className="space-y-6">
-            <div className="no-print">
-              <LiveStatusFeed statuses={statuses} phase={phase} />
-            </div>
+            <div className="no-print flex min-w-0 flex-col gap-4">
+              {/* flex-1 + h-full: the pipeline stretches to match the holdings height */}
+              <div className="flex-1 [&>*]:h-full">
+                <LiveStatusFeed statuses={statuses} phase={phase} />
+              </div>
 
-            {error && (
-              <p className="rounded-[4px] border border-neg-line bg-wash-neg px-4 py-3 text-sm text-terracotta">
-                {error.message}
-              </p>
-            )}
+              {error && (
+                <p className="rounded-[4px] border border-neg-line bg-wash-neg px-4 py-3 text-sm text-terracotta">
+                  {error.message}
+                </p>
+              )}
 
-            {report ? (
-              // No reportId passed -> the report chat stays hidden in the demo.
-              <FinalReportView
-                report={report}
-                diff={diff}
-                adviceReview={adviceReview}
-                streamingNarrative={streamedNarrative}
-                narrativeStreaming={narrativeStreaming}
-              />
-            ) : (
-              phase !== "streaming" && (
+              {!report && phase !== "streaming" && (
                 <p className="rounded-[4px] border border-dashed border-line px-4 py-10 text-center text-sm text-faint">
                   Generate a report to see the analysis here.
                 </p>
-              )
-            )}
+              )}
+            </div>
           </div>
+
+          {/* Report — full width. No reportId passed -> report chat stays hidden in the demo. */}
+          {report && (
+            <FinalReportView
+              report={report}
+              diff={diff}
+              adviceReview={adviceReview}
+              streamingNarrative={streamedNarrative}
+              narrativeStreaming={narrativeStreaming}
+            />
+          )}
         </div>
       </div>
     </main>

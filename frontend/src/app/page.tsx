@@ -85,47 +85,52 @@ export default function DashboardPage() {
           </button>
         </header>
 
-        <div className="grid gap-6 lg:grid-cols-[18rem_1fr]">
-          {/* Left: what you hold */}
-          <aside className="no-print">
-            {userId ? (
-              <PortfolioOverview userId={userId} />
-            ) : (
-              <p className="rounded-[4px] border border-line bg-card p-5 text-sm text-faint">
-                Loading…
-              </p>
-            )}
-          </aside>
+        <div className="space-y-6">
+          {/* Top band: holdings + the live pipeline sit side-by-side so neither
+              column is left empty; the report then spans the full width below. */}
+          <div className="grid items-stretch gap-6 lg:grid-cols-[18rem_1fr]">
+            {/* [&>*]:h-full makes the holdings card fill the equal-height cell */}
+            <aside className="no-print [&>*]:h-full">
+              {userId ? (
+                <PortfolioOverview userId={userId} />
+              ) : (
+                <p className="rounded-[4px] border border-line bg-card p-5 text-sm text-faint">
+                  Loading…
+                </p>
+              )}
+            </aside>
 
-          {/* Right: the analysis flow */}
-          <div className="space-y-6">
-            <div className="no-print">
-              <LiveStatusFeed statuses={statuses} phase={phase} />
-            </div>
+            <div className="no-print flex min-w-0 flex-col gap-4">
+              {/* flex-1 + h-full: the pipeline stretches to match the holdings height */}
+              <div className="flex-1 [&>*]:h-full">
+                <LiveStatusFeed statuses={statuses} phase={phase} />
+              </div>
 
-            {error && (
-              <p className="rounded-[4px] border border-neg-line bg-wash-neg px-4 py-3 text-sm text-terracotta">
-                {error.message}
-              </p>
-            )}
+              {error && (
+                <p className="rounded-[4px] border border-neg-line bg-wash-neg px-4 py-3 text-sm text-terracotta">
+                  {error.message}
+                </p>
+              )}
 
-            {report ? (
-              <FinalReportView
-                report={report}
-                diff={diff}
-                adviceReview={adviceReview}
-                reportId={reportId}
-                streamingNarrative={streamedNarrative}
-                narrativeStreaming={narrativeStreaming}
-              />
-            ) : (
-              phase !== "streaming" && (
+              {!report && phase !== "streaming" && (
                 <p className="rounded-[4px] border border-dashed border-line px-4 py-10 text-center text-sm text-faint">
                   Generate a report to see the analysis here.
                 </p>
-              )
-            )}
+              )}
+            </div>
           </div>
+
+          {/* Report — full width, so it uses the space instead of a right-shifted column */}
+          {report && (
+            <FinalReportView
+              report={report}
+              diff={diff}
+              adviceReview={adviceReview}
+              reportId={reportId}
+              streamingNarrative={streamedNarrative}
+              narrativeStreaming={narrativeStreaming}
+            />
+          )}
         </div>
       </div>
       {(phase === "awaiting_review" || phase === "saving") && review && (
