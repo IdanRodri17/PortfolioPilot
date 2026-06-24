@@ -133,7 +133,7 @@ function ConcentrationSection({ data }: { data: SectorConcentration }) {
   const meta = CONCENTRATION_META[data.concentration] ?? CONCENTRATION_META.unknown;
   const scorePct = Math.round(data.diversification_score * 100);
   return (
-    <section className="rounded-[4px] border border-line bg-card p-5">
+    <section className="h-full rounded-[4px] border border-line bg-card p-5">
       <div className="mb-3 flex items-center justify-between">
         <h2 className="font-serif text-lg font-normal text-ink">
           Sector concentration
@@ -351,13 +351,13 @@ export function FinalReportView({
         </div>
       </section>
 
-      {/* Concentration + recommendations sit two-up on a wide screen, stack on phone */}
-      <div className="grid gap-5 @2xl:grid-cols-2 @2xl:items-start">
+      {/* Concentration + recommendations sit two-up (equal height) on a wide screen, stack on phone */}
+      <div className="grid gap-5 @2xl:grid-cols-2 @2xl:items-stretch">
         {hasConcentration && (
           <ConcentrationSection data={report.sector_concentration!} />
         )}
 
-        <section className="rounded-[4px] border border-line bg-card p-5">
+        <section className="h-full rounded-[4px] border border-line bg-card p-5">
           <SectionHeading>Rebalancing recommendations</SectionHeading>
           {report.rebalancing_recommendations.length === 0 ? (
             <p className="rounded-[4px] bg-wash-pos px-3 py-2 text-sm text-forest">
