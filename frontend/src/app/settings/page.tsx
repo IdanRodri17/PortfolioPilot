@@ -8,9 +8,9 @@
  * The Telegram connect button calls POST /api/telegram/connect and updates
  * telegram_connected in local state without a full reload.
  *
- * Design: matches the project's dark-fintech aesthetic (slate-950 bg,
- * emerald-500 for active/success, rose-400 for errors, amber-500 for
- * warnings, slate-900 cards with slate-800 borders).
+ * Design: the Editorial light theme — warm paper surfaces, forest-green for
+ * active/success, terracotta for errors, ochre for warnings; hairline borders,
+ * via the shared @theme tokens (bg-card, border-line, text-ink, …).
  */
 
 import { useEffect, useState } from "react";
@@ -219,8 +219,8 @@ export default function SettingsPage() {
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-slate-950 flex items-center justify-center">
-        <p className="text-slate-500 text-sm animate-pulse">Loading settings…</p>
+      <main className="min-h-screen bg-backdrop flex items-center justify-center">
+        <p className="text-faint text-sm animate-pulse">Loading settings…</p>
       </main>
     );
   }
@@ -228,21 +228,21 @@ export default function SettingsPage() {
   // ─── render ──────────────────────────────────────────────────────────────
 
   return (
-    <main className="min-h-screen bg-slate-950 text-slate-100">
-      <div className="mx-auto max-w-2xl px-6 py-12">
+    <main className="min-h-screen bg-backdrop text-ink">
+      <div className="mx-auto max-w-2xl px-4 sm:px-6 py-10 sm:py-12">
 
         {/* Header */}
         <div className="mb-8">
           <Link
             href="/"
-            className="text-xs text-slate-500 hover:text-slate-300 transition-colors"
+            className="text-xs text-label hover:text-ink transition-colors"
           >
             ← Dashboard
           </Link>
-          <h1 className="mt-3 text-2xl font-semibold tracking-tight">
+          <h1 className="mt-3 font-serif font-medium tracking-[-0.02em] text-3xl sm:text-4xl">
             Delivery settings
           </h1>
-          <p className="mt-1 text-sm text-slate-500">
+          <p className="mt-1 text-sm text-muted">
             Configure how and when PortfolioPilot sends your daily report.
           </p>
         </div>
@@ -250,13 +250,13 @@ export default function SettingsPage() {
         <div className="space-y-4">
 
           {/* ── 1. Enabled toggle ─────────────────────────────────────── */}
-          <section className="rounded-xl border border-slate-800 bg-slate-900 p-5">
+          <section className="rounded-[4px] border border-line bg-card p-5">
             <div className="flex items-center justify-between gap-4">
               <div>
                 <p className="text-sm font-medium">
                   {form.enabled ? "Schedule active" : "Schedule paused"}
                 </p>
-                <p className="mt-0.5 text-xs text-slate-500">
+                <p className="mt-0.5 text-xs text-muted">
                   {form.enabled
                     ? "Reports will be sent automatically on your schedule."
                     : "Automatic delivery is paused. You can still send manually."}
@@ -266,16 +266,15 @@ export default function SettingsPage() {
                 onClick={() => patch("enabled", !form.enabled)}
                 className={[
                   "relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 border-transparent",
-                  "transition-colors duration-200 focus:outline-none focus-visible:ring-2",
-                  "focus-visible:ring-emerald-500",
-                  form.enabled ? "bg-emerald-500" : "bg-slate-700",
+                  "transition-colors duration-200 focus:outline-none",
+                  form.enabled ? "bg-forest" : "bg-inset",
                 ].join(" ")}
                 role="switch"
                 aria-checked={form.enabled}
               >
                 <span
                   className={[
-                    "pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow",
+                    "pointer-events-none inline-block h-5 w-5 rounded-full bg-paper shadow",
                     "transition duration-200",
                     form.enabled ? "translate-x-5" : "translate-x-0",
                   ].join(" ")}
@@ -285,8 +284,8 @@ export default function SettingsPage() {
           </section>
 
           {/* ── 2. Channels ───────────────────────────────────────────── */}
-          <section className="rounded-xl border border-slate-800 bg-slate-900 p-5">
-            <h2 className="mb-4 text-xs font-medium uppercase tracking-widest text-slate-500">
+          <section className="rounded-[4px] border border-line bg-card p-5">
+            <h2 className="mb-4 text-xs font-semibold uppercase tracking-[0.12em] text-faint">
               Channels
             </h2>
             <div className="space-y-5">
@@ -299,18 +298,18 @@ export default function SettingsPage() {
                   checked={form.deliver_email}
                   disabled={!view?.email_set}
                   onChange={(e) => patch("deliver_email", e.target.checked)}
-                  className="mt-0.5 h-4 w-4 rounded accent-emerald-500
+                  className="mt-0.5 h-4 w-4 rounded accent-[#2f5d45]
                     disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
                 />
                 <div>
                   <label
                     htmlFor="deliver_email"
-                    className={`text-sm leading-none ${view?.email_set ? "text-slate-200" : "text-slate-500 cursor-not-allowed"}`}
+                    className={`text-sm leading-none ${view?.email_set ? "text-ink" : "text-faint cursor-not-allowed"}`}
                   >
                     Email
                   </label>
                   {!view?.email_set && (
-                    <p className="mt-1 text-xs text-amber-500">
+                    <p className="mt-1 text-xs text-ochre">
                       No email address on file — add one to your user profile first.
                     </p>
                   )}
@@ -325,35 +324,35 @@ export default function SettingsPage() {
                   checked={form.deliver_telegram}
                   disabled={!view?.telegram_connected}
                   onChange={(e) => patch("deliver_telegram", e.target.checked)}
-                  className="mt-0.5 h-4 w-4 rounded accent-emerald-500
+                  className="mt-0.5 h-4 w-4 rounded accent-[#2f5d45]
                     disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
                 />
                 <div className="flex-1">
                   <label
                     htmlFor="deliver_telegram"
-                    className={`text-sm leading-none ${view?.telegram_connected ? "text-slate-200" : "text-slate-500 cursor-not-allowed"}`}
+                    className={`text-sm leading-none ${view?.telegram_connected ? "text-ink" : "text-faint cursor-not-allowed"}`}
                   >
                     Telegram
                   </label>
                   {view?.telegram_connected ? (
-                    <p className="mt-1 text-xs text-emerald-500">Bot connected ✓</p>
+                    <p className="mt-1 text-xs text-forest">Bot connected ✓</p>
                   ) : (
                     <div className="mt-2 space-y-2">
-                      <p className="text-xs text-slate-500">
+                      <p className="text-xs text-muted">
                         Send any message to your bot first, then click Connect.
                       </p>
                       <button
                         onClick={handleConnect}
                         disabled={connecting}
-                        className="text-xs px-3 py-1.5 rounded-lg bg-slate-800
-                          border border-slate-700 text-slate-200
-                          hover:border-emerald-600 hover:text-emerald-400
+                        className="text-xs px-3 py-1.5 rounded-[2px] bg-inset
+                          border border-field text-ink
+                          hover:border-forest hover:text-forest
                           transition-colors disabled:opacity-50"
                       >
                         {connecting ? "Connecting…" : "Connect Telegram"}
                       </button>
                       {connectError && (
-                        <p className="text-xs text-rose-400">{connectError}</p>
+                        <p className="text-xs text-terracotta">{connectError}</p>
                       )}
                     </div>
                   )}
@@ -364,23 +363,23 @@ export default function SettingsPage() {
 
           {/* ── 3. Timing (only when schedule is active) ──────────────── */}
           {form.enabled && (
-            <section className="rounded-xl border border-slate-800 bg-slate-900 p-5">
-              <h2 className="mb-4 text-xs font-medium uppercase tracking-widest text-slate-500">
+            <section className="rounded-[4px] border border-line bg-card p-5">
+              <h2 className="mb-4 text-xs font-semibold uppercase tracking-[0.12em] text-faint">
                 Timing
               </h2>
               <div className="space-y-4">
 
                 {/* Cadence */}
                 <div>
-                  <label className="block text-xs text-slate-500 mb-1.5">
+                  <label className="block text-xs text-label mb-1.5">
                     Cadence
                   </label>
                   <select
                     value={form.cadence}
                     onChange={(e) => handleCadenceChange(e.target.value as Cadence)}
-                    className="w-full rounded-lg bg-slate-800 border border-slate-700
-                      px-3 py-2 text-sm text-slate-100
-                      focus:outline-none focus:border-emerald-600 transition-colors"
+                    className="w-full rounded-[3px] bg-card border border-field
+                      px-3 py-2 text-sm text-ink
+                      focus:outline-none focus:border-forest transition-colors"
                   >
                     <option value="daily">Daily</option>
                     <option value="every_n_days">Every N days</option>
@@ -391,7 +390,7 @@ export default function SettingsPage() {
                 {/* Every N days → interval_days */}
                 {form.cadence === "every_n_days" && (
                   <div>
-                    <label className="block text-xs text-slate-500 mb-1.5">
+                    <label className="block text-xs text-label mb-1.5">
                       Send every how many days?
                     </label>
                     <input
@@ -401,9 +400,9 @@ export default function SettingsPage() {
                       onChange={(e) =>
                         patch("interval_days", Math.max(2, parseInt(e.target.value) || 2))
                       }
-                      className="w-24 rounded-lg bg-slate-800 border border-slate-700
-                        px-3 py-2 text-sm text-slate-100
-                        focus:outline-none focus:border-emerald-600 transition-colors"
+                      className="w-24 rounded-[3px] bg-card border border-field
+                        px-3 py-2 text-sm text-ink
+                        focus:outline-none focus:border-forest transition-colors"
                     />
                   </div>
                 )}
@@ -411,15 +410,15 @@ export default function SettingsPage() {
                 {/* Weekly → weekday */}
                 {form.cadence === "weekly" && (
                   <div>
-                    <label className="block text-xs text-slate-500 mb-1.5">
+                    <label className="block text-xs text-label mb-1.5">
                       Day of week
                     </label>
                     <select
                       value={form.weekday ?? 0}
                       onChange={(e) => patch("weekday", parseInt(e.target.value))}
-                      className="w-full rounded-lg bg-slate-800 border border-slate-700
-                        px-3 py-2 text-sm text-slate-100
-                        focus:outline-none focus:border-emerald-600 transition-colors"
+                      className="w-full rounded-[3px] bg-card border border-field
+                        px-3 py-2 text-sm text-ink
+                        focus:outline-none focus:border-forest transition-colors"
                     >
                       {WEEKDAYS.map((d, i) => (
                         <option key={d} value={i}>
@@ -432,30 +431,30 @@ export default function SettingsPage() {
 
                 {/* Send time */}
                 <div>
-                  <label className="block text-xs text-slate-500 mb-1.5">
+                  <label className="block text-xs text-label mb-1.5">
                     Send time (local)
                   </label>
                   <input
                     type="time"
                     value={form.send_time_local}
                     onChange={(e) => patch("send_time_local", e.target.value)}
-                    className="rounded-lg bg-slate-800 border border-slate-700
-                      px-3 py-2 text-sm text-slate-100
-                      focus:outline-none focus:border-emerald-600 transition-colors"
+                    className="rounded-[3px] bg-card border border-field
+                      px-3 py-2 text-sm text-ink
+                      focus:outline-none focus:border-forest transition-colors"
                   />
                 </div>
 
                 {/* Timezone */}
                 <div>
-                  <label className="block text-xs text-slate-500 mb-1.5">
+                  <label className="block text-xs text-label mb-1.5">
                     Timezone
                   </label>
                   <select
                     value={form.timezone}
                     onChange={(e) => patch("timezone", e.target.value)}
-                    className="w-full rounded-lg bg-slate-800 border border-slate-700
-                      px-3 py-2 text-sm text-slate-100
-                      focus:outline-none focus:border-emerald-600 transition-colors"
+                    className="w-full rounded-[3px] bg-card border border-field
+                      px-3 py-2 text-sm text-ink
+                      focus:outline-none focus:border-forest transition-colors"
                   >
                     {TIMEZONES.map((tz) => (
                       <option key={tz} value={tz}>
@@ -469,13 +468,13 @@ export default function SettingsPage() {
           )}
 
           {/* ── 4. Threshold alerts (V18) ─────────────────────────────── */}
-          <section className="rounded-xl border border-slate-800 bg-slate-900 p-5">
+          <section className="rounded-[4px] border border-line bg-card p-5">
             <div className="mb-4 flex items-center justify-between gap-4">
               <div>
-                <h2 className="text-xs font-medium uppercase tracking-widest text-slate-500">
+                <h2 className="text-xs font-semibold uppercase tracking-[0.12em] text-faint">
                   Threshold alerts
                 </h2>
-                <p className="mt-1 text-xs text-slate-500">
+                <p className="mt-1 text-xs text-muted">
                   Get pinged when something happens — not just on your schedule.
                   Each rule is off until you switch it on.
                 </p>
@@ -484,9 +483,8 @@ export default function SettingsPage() {
                 onClick={() => patch("alerts_enabled", !form.alerts_enabled)}
                 className={[
                   "relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 border-transparent",
-                  "transition-colors duration-200 focus:outline-none focus-visible:ring-2",
-                  "focus-visible:ring-emerald-500",
-                  form.alerts_enabled ? "bg-emerald-500" : "bg-slate-700",
+                  "transition-colors duration-200 focus:outline-none",
+                  form.alerts_enabled ? "bg-forest" : "bg-inset",
                 ].join(" ")}
                 role="switch"
                 aria-checked={form.alerts_enabled}
@@ -494,7 +492,7 @@ export default function SettingsPage() {
               >
                 <span
                   className={[
-                    "pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow",
+                    "pointer-events-none inline-block h-5 w-5 rounded-full bg-paper shadow",
                     "transition duration-200",
                     form.alerts_enabled ? "translate-x-5" : "translate-x-0",
                   ].join(" ")}
@@ -503,7 +501,7 @@ export default function SettingsPage() {
             </div>
 
             {form.alerts_enabled && !form.deliver_telegram && !form.deliver_email && (
-              <p className="mb-4 rounded-lg bg-amber-500/10 px-3 py-2 text-xs text-amber-500">
+              <p className="mb-4 rounded-[3px] bg-ochre/10 px-3 py-2 text-xs text-ochre">
                 Turn on a channel above (Email or Telegram) — alerts are sent
                 through the same channels as your reports.
               </p>
@@ -517,9 +515,9 @@ export default function SettingsPage() {
                   id="rule_price"
                   checked={form.alert_price_move_pct != null}
                   onChange={(e) => toggleRule("alert_price_move_pct", e.target.checked)}
-                  className="h-4 w-4 rounded accent-emerald-500 cursor-pointer"
+                  className="h-4 w-4 rounded accent-[#2f5d45] cursor-pointer"
                 />
-                <label htmlFor="rule_price" className="flex-1 text-sm text-slate-200">
+                <label htmlFor="rule_price" className="flex-1 text-sm text-ink">
                   Any holding moves by
                 </label>
                 <input
@@ -532,11 +530,11 @@ export default function SettingsPage() {
                     patch("alert_price_move_pct", parseFloat(e.target.value) || 0);
                     setPreview(null);
                   }}
-                  className="w-20 rounded-lg bg-slate-800 border border-slate-700 px-2.5 py-1.5
-                    text-sm text-slate-100 text-right focus:outline-none focus:border-emerald-600
+                  className="w-20 rounded-[3px] bg-card border border-field px-2.5 py-1.5
+                    text-sm text-ink text-right focus:outline-none focus:border-forest
                     disabled:opacity-40 disabled:cursor-not-allowed"
                 />
-                <span className="w-24 text-xs text-slate-500">% in 24h</span>
+                <span className="w-24 text-xs text-faint">% in 24h</span>
               </div>
 
               {/* Portfolio total move */}
@@ -546,9 +544,9 @@ export default function SettingsPage() {
                   id="rule_portfolio"
                   checked={form.alert_portfolio_move_pct != null}
                   onChange={(e) => toggleRule("alert_portfolio_move_pct", e.target.checked)}
-                  className="h-4 w-4 rounded accent-emerald-500 cursor-pointer"
+                  className="h-4 w-4 rounded accent-[#2f5d45] cursor-pointer"
                 />
-                <label htmlFor="rule_portfolio" className="flex-1 text-sm text-slate-200">
+                <label htmlFor="rule_portfolio" className="flex-1 text-sm text-ink">
                   Whole portfolio moves by
                 </label>
                 <input
@@ -561,11 +559,11 @@ export default function SettingsPage() {
                     patch("alert_portfolio_move_pct", parseFloat(e.target.value) || 0);
                     setPreview(null);
                   }}
-                  className="w-20 rounded-lg bg-slate-800 border border-slate-700 px-2.5 py-1.5
-                    text-sm text-slate-100 text-right focus:outline-none focus:border-emerald-600
+                  className="w-20 rounded-[3px] bg-card border border-field px-2.5 py-1.5
+                    text-sm text-ink text-right focus:outline-none focus:border-forest
                     disabled:opacity-40 disabled:cursor-not-allowed"
                 />
-                <span className="w-24 text-xs text-slate-500">% in 24h</span>
+                <span className="w-24 text-xs text-faint">% in 24h</span>
               </div>
 
               {/* Concentration */}
@@ -575,9 +573,9 @@ export default function SettingsPage() {
                   id="rule_conc"
                   checked={form.alert_concentration_pct != null}
                   onChange={(e) => toggleRule("alert_concentration_pct", e.target.checked)}
-                  className="h-4 w-4 rounded accent-emerald-500 cursor-pointer"
+                  className="h-4 w-4 rounded accent-[#2f5d45] cursor-pointer"
                 />
-                <label htmlFor="rule_conc" className="flex-1 text-sm text-slate-200">
+                <label htmlFor="rule_conc" className="flex-1 text-sm text-ink">
                   Any holding exceeds
                 </label>
                 <input
@@ -594,16 +592,16 @@ export default function SettingsPage() {
                     );
                     setPreview(null);
                   }}
-                  className="w-20 rounded-lg bg-slate-800 border border-slate-700 px-2.5 py-1.5
-                    text-sm text-slate-100 text-right focus:outline-none focus:border-emerald-600
+                  className="w-20 rounded-[3px] bg-card border border-field px-2.5 py-1.5
+                    text-sm text-ink text-right focus:outline-none focus:border-forest
                     disabled:opacity-40 disabled:cursor-not-allowed"
                 />
-                <span className="w-24 text-xs text-slate-500">% of portfolio</span>
+                <span className="w-24 text-xs text-faint">% of portfolio</span>
               </div>
 
               {/* Cooldown */}
-              <div className="flex items-center gap-3 border-t border-slate-800 pt-3">
-                <label htmlFor="cooldown" className="flex-1 text-sm text-slate-300">
+              <div className="flex items-center gap-3 border-t border-line pt-3">
+                <label htmlFor="cooldown" className="flex-1 text-sm text-muted">
                   Don&apos;t repeat the same alert for
                 </label>
                 <input
@@ -618,26 +616,26 @@ export default function SettingsPage() {
                       Math.min(168, Math.max(1, parseInt(e.target.value) || 1)),
                     )
                   }
-                  className="w-20 rounded-lg bg-slate-800 border border-slate-700 px-2.5 py-1.5
-                    text-sm text-slate-100 text-right focus:outline-none focus:border-emerald-600"
+                  className="w-20 rounded-[3px] bg-card border border-field px-2.5 py-1.5
+                    text-sm text-ink text-right focus:outline-none focus:border-forest"
                 />
-                <span className="w-24 text-xs text-slate-500">hours</span>
+                <span className="w-24 text-xs text-faint">hours</span>
               </div>
             </div>
 
             {/* Preview */}
-            <div className="mt-4 border-t border-slate-800 pt-4">
+            <div className="mt-4 border-t border-line pt-4">
               <div className="flex items-center gap-3">
                 <button
                   onClick={handlePreview}
                   disabled={previewing}
-                  className="text-xs px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700
-                    text-slate-200 hover:border-emerald-600 hover:text-emerald-400
+                  className="text-xs px-3 py-1.5 rounded-[2px] bg-inset border border-field
+                    text-ink hover:border-forest hover:text-forest
                     transition-colors disabled:opacity-50"
                 >
                   {previewing ? "Checking…" : "Preview alerts now"}
                 </button>
-                <span className="text-xs text-slate-500">
+                <span className="text-xs text-muted">
                   Dry-run against live prices — uses your <em>saved</em> rules, never sends.
                 </span>
               </div>
@@ -645,13 +643,13 @@ export default function SettingsPage() {
               {preview && (
                 <div className="mt-3 text-sm">
                   {preview.skipped ? (
-                    <p className="text-slate-400">
+                    <p className="text-muted">
                       {preview.skipped === "no alert rules set"
                         ? "No rules are switched on — tick a rule and Save, then preview."
                         : preview.skipped}
                     </p>
                   ) : preview.alerts.length === 0 ? (
-                    <p className="text-emerald-400">
+                    <p className="text-forest">
                       ✓ Nothing would fire right now — you&apos;re within all your thresholds.
                     </p>
                   ) : (
@@ -659,7 +657,7 @@ export default function SettingsPage() {
                       {preview.alerts.map((a, i) => (
                         <li
                           key={i}
-                          className="rounded-lg bg-amber-500/10 px-3 py-2 text-amber-300"
+                          className="rounded-[3px] bg-ochre/10 px-3 py-2 text-ochre"
                         >
                           {a}
                         </li>
@@ -676,8 +674,8 @@ export default function SettingsPage() {
             <button
               onClick={handleSave}
               disabled={saving}
-              className="px-5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500
-                text-white text-sm font-medium transition-colors disabled:opacity-50"
+              className="px-5 py-2 rounded-[2px] bg-forest hover:bg-forest-deep
+                text-paper text-sm font-medium transition-colors disabled:opacity-50"
             >
               {saving ? "Saving…" : "Save settings"}
             </button>
@@ -685,8 +683,8 @@ export default function SettingsPage() {
             <button
               onClick={handleRunNow}
               disabled={runningNow}
-              className="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700
-                border border-slate-700 text-slate-300 text-sm
+              className="px-4 py-2 rounded-[2px] bg-inset hover:bg-chip
+                border border-field text-muted text-sm
                 transition-colors disabled:opacity-50"
             >
               {runningNow ? "Sending…" : "Send now"}
@@ -694,7 +692,7 @@ export default function SettingsPage() {
 
             {saveMsg && (
               <span
-                className={`text-sm ${saveMsg.ok ? "text-emerald-400" : "text-rose-400"}`}
+                className={`text-sm ${saveMsg.ok ? "text-forest" : "text-terracotta"}`}
               >
                 {saveMsg.ok ? "✓ " : "✗ "}
                 {saveMsg.text}
@@ -704,8 +702,8 @@ export default function SettingsPage() {
 
           {/* Run-now result */}
           {runNowMsg && (
-            <p className="text-xs text-slate-400 bg-slate-900 rounded-lg
-              px-4 py-2.5 border border-slate-800">
+            <p className="text-xs text-muted bg-card rounded-[3px]
+              px-4 py-2.5 border border-line">
               {runNowMsg}
             </p>
           )}

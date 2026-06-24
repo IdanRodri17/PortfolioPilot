@@ -43,12 +43,12 @@ export function MemoryReviewModal({
   const allIndices = proposedMemories.map((_, i) => i);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm">
-      <div className="w-full max-w-lg rounded-xl border border-slate-800 bg-slate-900 p-6 shadow-2xl">
-        <h2 className="text-lg font-semibold tracking-tight text-slate-100">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
+      <div className="w-full max-w-lg rounded-[4px] border border-line bg-paper p-5 text-ink shadow-2xl sm:p-6">
+        <h2 className="font-serif text-lg font-medium tracking-tight text-ink">
           Review what PortfolioPilot learned
         </h2>
-        <p className="mt-1 text-sm text-slate-500">
+        <p className="mt-1 text-sm text-muted">
           These insights were distilled from this report. Choose which to keep in
           long-term memory — only the ones you approve are saved.
         </p>
@@ -57,10 +57,10 @@ export function MemoryReviewModal({
           {proposedMemories.map((m, i) => (
             <li key={i}>
               <label
-                className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors ${
+                className={`flex cursor-pointer items-start gap-3 rounded-[3px] border p-3 transition-colors ${
                   checked[i]
-                    ? "border-emerald-600/40 bg-emerald-500/5"
-                    : "border-slate-800 bg-slate-900/40"
+                    ? "border-forest/40 bg-wash-pos"
+                    : "border-line bg-card"
                 }`}
               >
                 <input
@@ -68,9 +68,9 @@ export function MemoryReviewModal({
                   checked={checked[i]}
                   onChange={() => toggle(i)}
                   disabled={saving}
-                  className="mt-0.5 h-4 w-4 flex-shrink-0 accent-emerald-600"
+                  className="mt-0.5 h-4 w-4 flex-shrink-0 accent-[#2f5d45]"
                 />
-                <span className="text-sm leading-relaxed text-slate-200">
+                <span className="text-sm leading-relaxed text-ink">
                   {m.insight}
                 </span>
               </label>
@@ -78,11 +78,11 @@ export function MemoryReviewModal({
           ))}
         </ul>
 
-        <div className="mt-6 flex items-center justify-between gap-3">
+        <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <button
             onClick={() => onApprove([])}
             disabled={saving}
-            className="text-sm text-slate-500 transition-colors hover:text-rose-400 disabled:opacity-50"
+            className="min-h-[40px] text-sm text-label transition-colors hover:text-terracotta disabled:opacity-50"
           >
             Reject all
           </button>
@@ -90,14 +90,14 @@ export function MemoryReviewModal({
             <button
               onClick={() => onApprove(allIndices)}
               disabled={saving}
-              className="rounded-lg border border-slate-700 px-3 py-2 text-sm text-slate-300 transition-colors hover:bg-slate-800 disabled:opacity-50"
+              className="min-h-[40px] rounded-[2px] border border-field px-3 py-2 text-sm text-muted transition-colors hover:bg-inset disabled:opacity-50"
             >
               Approve all
             </button>
             <button
               onClick={() => onApprove(selectedIndices)}
               disabled={saving || selectedIndices.length === 0}
-              className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-emerald-500 disabled:opacity-50"
+              className="min-h-[40px] rounded-[2px] bg-forest px-4 py-2 text-sm font-medium text-paper transition-colors hover:bg-forest-deep disabled:opacity-50"
             >
               {saving ? "Saving…" : `Approve selected (${selectedIndices.length})`}
             </button>

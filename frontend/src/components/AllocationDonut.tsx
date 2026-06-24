@@ -18,17 +18,14 @@ import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 import type { AssetAllocation } from "@/lib/types";
 import { displayMoney, type BaseCurrency } from "@/lib/money";
 
-// Largest holdings get the brighter emeralds; the tail fades into slate so the
+// Largest holdings get the deepest forest; the tail fades to a soft sage so the
 // chart reads as "your concentration" rather than a categorical rainbow.
 const PALETTE = [
-  "#10b981",
-  "#34d399",
-  "#6ee7b7",
-  "#a7f3d0",
-  "#5eead4",
-  "#64748b",
-  "#94a3b8",
-  "#cbd5e1",
+  "#2F5D45",
+  "#4A7A5C",
+  "#6E9A7E",
+  "#9DBCA6",
+  "#C9D8CC",
 ];
 
 interface DonutTooltipProps {
@@ -50,9 +47,9 @@ export function AllocationDonut({
     const slice = props.active ? props.payload?.[0]?.payload : undefined;
     if (!slice) return null;
     return (
-      <div className="rounded-md border border-slate-700 bg-slate-900/95 px-3 py-2 text-xs shadow-lg">
-        <span className="font-mono text-slate-200">{slice.asset}</span>{" "}
-        <span className="text-slate-400">
+      <div className="rounded-[4px] border border-line bg-card px-3 py-2 text-xs text-ink shadow-lg">
+        <span className="font-mono text-ink">{slice.asset}</span>{" "}
+        <span className="text-muted">
           {displayMoney(slice.value_usd, base, ilsPerUsd)} · {slice.pct}%
         </span>
       </div>
@@ -61,7 +58,7 @@ export function AllocationDonut({
 
   if (composition.length === 0) {
     return (
-      <p className="rounded-lg bg-slate-800/40 px-3 py-2 text-sm text-slate-400 ring-1 ring-slate-700/50">
+      <p className="rounded-[4px] border border-line bg-inset px-3 py-2 text-sm text-muted">
         No priced holdings to chart yet.
       </p>
     );
@@ -96,10 +93,10 @@ export function AllocationDonut({
           </PieChart>
         </ResponsiveContainer>
         <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-          <span className="text-[10px] uppercase tracking-wider text-slate-500">
+          <span className="text-xs font-semibold uppercase tracking-[0.12em] text-faint">
             Total
           </span>
-          <span className="text-base font-semibold text-slate-100">
+          <span className="font-serif text-base font-medium tracking-[-0.02em] text-ink">
             {displayMoney(total, base, ilsPerUsd, { compact: true })}
           </span>
         </div>
@@ -112,9 +109,9 @@ export function AllocationDonut({
               className="h-2.5 w-2.5 shrink-0 rounded-sm"
               style={{ backgroundColor: PALETTE[i % PALETTE.length] }}
             />
-            <span className="font-mono text-slate-200">{slice.asset}</span>
-            <span className="text-slate-400">{slice.pct}%</span>
-            <span className="ml-auto font-mono text-xs text-slate-500">
+            <span className="font-mono text-ink">{slice.asset}</span>
+            <span className="text-muted">{slice.pct}%</span>
+            <span className="ml-auto font-mono text-xs text-faint">
               {displayMoney(slice.value_usd, base, ilsPerUsd)}
             </span>
           </li>

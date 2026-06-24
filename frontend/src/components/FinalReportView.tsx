@@ -11,9 +11,10 @@
  *   - rebalancing_recommendations -> directional rows (or an all-clear state)
  *   - summary_narrative   -> prose paragraphs
  *
- * Colour language is shared with LiveStatusFeed: emerald = positive/good,
- * rose = negative/reduce, slate = neutral. Amber stays reserved for the
- * feed's in-flight state, so it never appears here where nothing is running.
+ * Theme: Editorial (warm light). Colour language — forest = positive/good,
+ * terracotta = negative/reduce, ochre = caution. The whole report is a
+ * container-query context (`@container`), so on a wide screen the body lays out
+ * two-up and on a phone every widget stacks one under another.
  */
 
 import { useEffect, useState } from "react";
@@ -41,31 +42,38 @@ function formatPercent(value: number): string {
 }
 
 const SENTIMENT_STYLES: Record<Sentiment, string> = {
-  Positive: "bg-emerald-500/10 text-emerald-300 ring-1 ring-emerald-500/20",
-  Neutral: "bg-slate-500/10 text-slate-300 ring-1 ring-slate-500/20",
-  Negative: "bg-rose-500/10 text-rose-300 ring-1 ring-rose-500/20",
+  Positive: "bg-wash-pos text-forest",
+  Neutral: "bg-chip text-label",
+  Negative: "bg-wash-neg text-terracotta",
 };
 
 const ACTION_META: Record<
   RecommendationAction,
   { label: string; arrow: string; text: string }
 > = {
-  reduce: { label: "Reduce", arrow: "↓", text: "text-rose-300" },
-  increase: { label: "Increase", arrow: "↑", text: "text-emerald-300" },
-  hold: { label: "Hold", arrow: "→", text: "text-slate-300" },
+  reduce: { label: "Reduce", arrow: "↓", text: "text-terracotta" },
+  increase: { label: "Increase", arrow: "↑", text: "text-forest" },
+  hold: { label: "Hold", arrow: "→", text: "text-label" },
 };
 
 function confidenceMeta(value: number): { label: string; bar: string } {
-  if (value >= 0.7) return { label: "High", bar: "bg-emerald-400" };
-  if (value >= 0.5) return { label: "Moderate", bar: "bg-amber-400" };
-  return { label: "Low", bar: "bg-rose-400" };
+  if (value >= 0.7) return { label: "High", bar: "bg-forest" };
+  if (value >= 0.5) return { label: "Moderate", bar: "bg-ochre" };
+  return { label: "Low", bar: "bg-terracotta" };
+}
+
+// Section heading — Spectral serif, per the Editorial type scale.
+function SectionHeading({ children }: { children: React.ReactNode }) {
+  return (
+    <h2 className="mb-3 font-serif text-lg font-normal text-ink">{children}</h2>
+  );
 }
 
 function InsightCard({ insight }: { insight: MarketInsight }) {
   return (
-    <div className="rounded-lg border border-slate-800 bg-slate-900/40 p-4">
+    <div className="rounded-[4px] border border-line bg-card p-4">
       <div className="mb-2 flex items-center gap-2">
-        <span className="rounded bg-slate-800 px-1.5 py-0.5 font-mono text-xs text-slate-200">
+        <span className="rounded-[2px] bg-chip px-1.5 py-0.5 font-mono text-xs text-ink">
           {insight.asset}
         </span>
         <span
@@ -74,7 +82,7 @@ function InsightCard({ insight }: { insight: MarketInsight }) {
           {insight.sentiment}
         </span>
       </div>
-      <p className="text-sm leading-relaxed text-slate-400">{insight.summary}</p>
+      <p className="text-sm leading-relaxed text-muted">{insight.summary}</p>
     </div>
   );
 }
@@ -82,21 +90,19 @@ function InsightCard({ insight }: { insight: MarketInsight }) {
 function RecommendationRow({ rec }: { rec: RebalancingRecommendation }) {
   const meta = ACTION_META[rec.action];
   return (
-    <div className="flex items-start gap-3 rounded-lg border border-slate-800 bg-slate-900/40 p-3">
-      <span className={`mt-0.5 font-mono text-sm font-semibold ${meta.text}`}>
+    <div className="flex items-start gap-3 rounded-[4px] border border-line bg-card p-3">
+      <span className={`mt-0.5 font-serif text-lg font-medium ${meta.text}`}>
         {meta.arrow}
       </span>
       <div>
-        <p className="text-sm text-slate-200">
+        <p className="text-sm text-ink">
           <span className={`font-medium ${meta.text}`}>{meta.label}</span>{" "}
-          <span className="font-mono text-slate-300">{rec.asset}</span>{" "}
-          <span className="text-slate-500">
+          <span className="font-mono text-ink-soft">{rec.asset}</span>{" "}
+          <span className="text-faint">
             ({formatPercent(rec.target_change_pct)})
           </span>
         </p>
-        <p className="mt-1 text-sm leading-relaxed text-slate-400">
-          {rec.rationale}
-        </p>
+        <p className="mt-1 text-sm leading-relaxed text-muted">{rec.rationale}</p>
       </div>
     </div>
   );
@@ -106,52 +112,39 @@ const CONCENTRATION_META: Record<
   SectorConcentration["concentration"],
   { label: string; chip: string }
 > = {
-  high: {
-    label: "High",
-    chip: "bg-rose-500/10 text-rose-300 ring-1 ring-rose-500/20",
-  },
-  moderate: {
-    label: "Moderate",
-    chip: "bg-amber-500/10 text-amber-300 ring-1 ring-amber-500/20",
-  },
-  low: {
-    label: "Low",
-    chip: "bg-emerald-500/10 text-emerald-300 ring-1 ring-emerald-500/20",
-  },
-  unknown: {
-    label: "Unknown",
-    chip: "bg-slate-500/10 text-slate-300 ring-1 ring-slate-500/20",
-  },
+  high: { label: "High", chip: "border border-neg-line bg-wash-neg text-terracotta" },
+  moderate: { label: "Moderate", chip: "bg-ochre/10 text-ochre" },
+  low: { label: "Low", chip: "border border-pos-line bg-wash-pos text-forest" },
+  unknown: { label: "Unknown", chip: "bg-chip text-label" },
 };
 
-// Same slate/emerald language as the allocation donut — no rainbow.
+// Editorial green ramp (largest slice first); neutrals tail off for long lists.
 const SECTOR_COLORS = [
-  "#10b981",
-  "#34d399",
-  "#6ee7b7",
-  "#a7f3d0",
-  "#5eead4",
-  "#64748b",
-  "#94a3b8",
-  "#cbd5e1",
+  "#2f5d45",
+  "#4a7a5c",
+  "#6e9a7e",
+  "#9dbca6",
+  "#c9d8cc",
+  "#a89e8e",
+  "#cdbfa0",
 ];
 
 function ConcentrationSection({ data }: { data: SectorConcentration }) {
   const meta = CONCENTRATION_META[data.concentration] ?? CONCENTRATION_META.unknown;
   const scorePct = Math.round(data.diversification_score * 100);
   return (
-    <section className="rounded-xl border border-slate-800 bg-slate-900/60 p-5">
+    <section className="rounded-[4px] border border-line bg-card p-5">
       <div className="mb-3 flex items-center justify-between">
-        <h2 className="text-sm font-medium tracking-wide text-slate-300">
+        <h2 className="font-serif text-lg font-normal text-ink">
           Sector concentration
         </h2>
-        <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${meta.chip}`}>
+        <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${meta.chip}`}>
           {meta.label}
         </span>
       </div>
 
       {/* Stacked breakdown bar */}
-      <div className="flex h-3 w-full overflow-hidden rounded-full bg-slate-800">
+      <div className="flex h-2.5 w-full gap-0.5 overflow-hidden rounded-full bg-line">
         {data.sectors.map((s, i) => (
           <div
             key={s.sector}
@@ -173,21 +166,25 @@ function ConcentrationSection({ data }: { data: SectorConcentration }) {
               className="h-2.5 w-2.5 shrink-0 rounded-sm"
               style={{ backgroundColor: SECTOR_COLORS[i % SECTOR_COLORS.length] }}
             />
-            <span className="text-slate-300">{s.sector}</span>
-            <span className="ml-auto font-mono text-xs text-slate-500">{s.pct}%</span>
+            <span className="text-ink-soft">{s.sector}</span>
+            <span className="ml-auto font-mono text-xs text-faint">{s.pct}%</span>
           </li>
         ))}
       </ul>
 
-      <p className="mt-3 text-sm leading-relaxed text-slate-400">{data.note}</p>
-      <p className="mt-1 text-xs text-slate-500">
+      <p className="mt-3 text-sm leading-relaxed text-muted">{data.note}</p>
+      <p className="mt-1 text-xs text-faint">
         Diversification score{" "}
-        <span className="font-mono text-slate-400">{scorePct}/100</span> ·
+        <span className="font-mono text-muted">{scorePct}/100</span> ·
         educational, not financial advice.
       </p>
     </section>
   );
 }
+
+// Toolbar button (Share / Export) — hairline, no glow.
+const toolBtn =
+  "rounded-[2px] border border-line px-3 py-1.5 text-xs text-muted transition-colors hover:bg-inset";
 
 export function FinalReportView({
   report,
@@ -243,6 +240,10 @@ export function FinalReportView({
   const insights = [...report.market_insights].sort((a, b) =>
     a.asset.localeCompare(b.asset),
   );
+  const hasConcentration =
+    !!report.sector_concentration &&
+    report.sector_concentration.sectors.length > 0;
+
   // V19: render the streamed text while it types in; otherwise the full,
   // authoritative narrative (the streamed and final text are identical once done).
   const liveNarrative = narrativeStreaming === true;
@@ -254,16 +255,16 @@ export function FinalReportView({
     .filter((p) => p.trim().length > 0);
 
   return (
-    <div className="space-y-5">
+    <div className="@container space-y-5">
       {/* Share / export (V15b) — hidden in the printed PDF */}
-      <div className="no-print flex items-center justify-end gap-2">
-        <div className="inline-flex overflow-hidden rounded-lg border border-slate-700 text-xs">
+      <div className="no-print flex flex-wrap items-center justify-end gap-2">
+        <div className="inline-flex overflow-hidden rounded-[2px] border border-line text-xs">
           <button
             onClick={() => setBase("USD")}
             className={`px-2.5 py-1.5 transition-colors ${
               base === "USD"
-                ? "bg-slate-800 text-slate-100"
-                : "text-slate-400 hover:text-slate-200"
+                ? "bg-inset text-ink"
+                : "text-muted hover:text-ink"
             }`}
           >
             $ USD
@@ -274,25 +275,19 @@ export function FinalReportView({
             title={ilsPerUsd == null ? "Exchange rate unavailable" : "Show in shekels"}
             className={`px-2.5 py-1.5 transition-colors disabled:opacity-40 ${
               base === "ILS"
-                ? "bg-slate-800 text-slate-100"
-                : "text-slate-400 hover:text-slate-200"
+                ? "bg-inset text-ink"
+                : "text-muted hover:text-ink"
             }`}
           >
             ₪ ILS
           </button>
         </div>
         {reportId && (
-          <button
-            onClick={shareLink}
-            className="rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-300 transition-colors hover:bg-slate-800"
-          >
+          <button onClick={shareLink} className={toolBtn}>
             {copied ? "Link copied" : "Share"}
           </button>
         )}
-        <button
-          onClick={() => window.print()}
-          className="rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-300 transition-colors hover:bg-slate-800"
-        >
+        <button onClick={() => window.print()} className={toolBtn}>
           Export PDF
         </button>
       </div>
@@ -301,41 +296,41 @@ export function FinalReportView({
       {diff && <SinceLastReport diff={diff} />}
 
       {/* Valuation header */}
-      <section className="rounded-xl border border-slate-800 bg-slate-900/60 p-5">
+      <section className="rounded-[4px] border border-line bg-card p-5 sm:p-6">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
-            <p className="text-xs uppercase tracking-wider text-slate-500">
+            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-faint">
               Portfolio value
             </p>
-            <p className="mt-1 text-3xl font-semibold text-slate-100">
+            <p className="mt-1.5 font-serif text-4xl font-medium tracking-[-0.02em] text-ink sm:text-5xl">
               {displayMoney(val.total_usd, base, ilsPerUsd)}
             </p>
             <p
-              className={`mt-1 text-sm font-medium ${changePositive ? "text-emerald-400" : "text-rose-400"}`}
+              className={`mt-1.5 text-sm font-semibold ${changePositive ? "text-forest" : "text-terracotta"}`}
             >
               {changePositive ? "▲" : "▼"} {formatPercent(val.change_24h_percent)}{" "}
-              <span className="text-slate-500">24h</span>
+              <span className="font-normal text-faint">past 24h</span>
             </p>
           </div>
           <div className="min-w-[10rem]">
-            <p className="text-xs uppercase tracking-wider text-slate-500">
+            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-faint">
               Confidence · {conf.label}
             </p>
             <div className="mt-2 flex items-center gap-2">
-              <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-800">
+              <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-line">
                 <div
                   className={`h-full rounded-full ${conf.bar}`}
                   style={{ width: `${confPct}%` }}
                 />
               </div>
-              <span className="font-mono text-xs text-slate-400">{confPct}%</span>
+              <span className="font-mono text-xs text-muted">{confPct}%</span>
             </div>
           </div>
         </div>
 
         {/* Value-weighted allocation (V10a) */}
-        <div className="mt-5 border-t border-slate-800 pt-4">
-          <p className="mb-3 text-xs uppercase tracking-wider text-slate-500">
+        <div className="mt-5 border-t border-line pt-4">
+          <p className="mb-3 text-xs font-semibold uppercase tracking-[0.12em] text-faint">
             Allocation
           </p>
           <AllocationDonut
@@ -346,67 +341,77 @@ export function FinalReportView({
         </div>
       </section>
 
-      {/* Sector concentration (V11) */}
-      {report.sector_concentration &&
-        report.sector_concentration.sectors.length > 0 && (
-          <ConcentrationSection data={report.sector_concentration} />
-        )}
-
-      {/* Market insights */}
-      <section className="rounded-xl border border-slate-800 bg-slate-900/60 p-5">
-        <h2 className="mb-3 text-sm font-medium tracking-wide text-slate-300">
-          Market insights
-        </h2>
-        <div className="grid gap-3 sm:grid-cols-2">
+      {/* Market insights — full width, multi-column card wall */}
+      <section className="rounded-[4px] border border-line bg-card p-5">
+        <SectionHeading>Market insights</SectionHeading>
+        <div className="grid gap-3 @xl:grid-cols-2 @4xl:grid-cols-3">
           {insights.map((insight) => (
             <InsightCard key={insight.asset} insight={insight} />
           ))}
         </div>
       </section>
 
-      {/* Recommendations */}
-      <section className="rounded-xl border border-slate-800 bg-slate-900/60 p-5">
-        <h2 className="mb-3 text-sm font-medium tracking-wide text-slate-300">
-          Rebalancing recommendations
-        </h2>
-        {report.rebalancing_recommendations.length === 0 ? (
-          <p className="rounded-lg bg-emerald-500/5 px-3 py-2 text-sm text-emerald-300/80 ring-1 ring-emerald-500/10">
-            No changes needed — composition is within your risk profile.
-          </p>
-        ) : (
-          <div className="space-y-2">
-            {report.rebalancing_recommendations.map((rec, i) => (
-              <RecommendationRow key={`${rec.asset}-${i}`} rec={rec} />
-            ))}
-          </div>
+      {/* Concentration + recommendations sit two-up on a wide screen, stack on phone */}
+      <div className="grid gap-5 @2xl:grid-cols-2 @2xl:items-start">
+        {hasConcentration && (
+          <ConcentrationSection data={report.sector_concentration!} />
         )}
-      </section>
+
+        <section className="rounded-[4px] border border-line bg-card p-5">
+          <SectionHeading>Rebalancing recommendations</SectionHeading>
+          {report.rebalancing_recommendations.length === 0 ? (
+            <p className="rounded-[4px] bg-wash-pos px-3 py-2 text-sm text-forest">
+              No changes needed — composition is within your risk profile.
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {report.rebalancing_recommendations.map((rec, i) => (
+                <RecommendationRow key={`${rec.asset}-${i}`} rec={rec} />
+              ))}
+            </div>
+          )}
+        </section>
+      </div>
 
       {/* AI self-grading of the prior report's calls (V13) */}
       {adviceReview && <AdviceReportCard review={adviceReview} />}
 
-      {/* Narrative */}
-      <section className="rounded-xl border border-slate-800 bg-slate-900/60 p-5">
-        <h2 className="mb-3 text-sm font-medium tracking-wide text-slate-300">
+      {/* Narrative — measure capped for readability even on a wide report */}
+      <section className="rounded-[4px] border border-line bg-card p-5">
+        <p className="mb-3 text-xs font-semibold uppercase tracking-[0.12em] text-faint">
           Summary
-        </h2>
-        <div className="space-y-3">
+        </p>
+        <div className="max-w-[68ch] space-y-3">
           {narrativeParagraphs.length === 0 && liveNarrative && (
-            <p className="no-print text-sm italic leading-relaxed text-slate-500">
+            <p className="no-print text-sm italic leading-relaxed text-faint">
               Writing summary
-              <span className="ml-0.5 animate-pulse text-emerald-400">▋</span>
+              <span className="ml-0.5 animate-pulse text-forest">▋</span>
             </p>
           )}
-          {narrativeParagraphs.map((p, i) => (
-            <p key={i} className="text-sm leading-relaxed text-slate-400">
-              {p}
-              {liveNarrative && i === narrativeParagraphs.length - 1 && (
-                <span className="no-print ml-0.5 inline-block animate-pulse text-emerald-400">
-                  ▋
-                </span>
-              )}
-            </p>
-          ))}
+          {narrativeParagraphs.map((p, i) =>
+            i === 0 ? (
+              <p
+                key={i}
+                className="font-serif text-[17px] leading-relaxed text-ink-soft"
+              >
+                {p}
+                {liveNarrative && narrativeParagraphs.length === 1 && (
+                  <span className="no-print ml-0.5 inline-block animate-pulse text-forest">
+                    ▋
+                  </span>
+                )}
+              </p>
+            ) : (
+              <p key={i} className="text-sm leading-relaxed text-muted">
+                {p}
+                {liveNarrative && i === narrativeParagraphs.length - 1 && (
+                  <span className="no-print ml-0.5 inline-block animate-pulse text-forest">
+                    ▋
+                  </span>
+                )}
+              </p>
+            ),
+          )}
         </div>
       </section>
 

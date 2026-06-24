@@ -14,19 +14,19 @@ import type { AdviceReview, GradedCall } from "@/lib/types";
 const GRADE_META: Record<GradedCall["grade"], { label: string; chip: string }> = {
   good: {
     label: "Aged well",
-    chip: "bg-emerald-500/10 text-emerald-300 ring-1 ring-emerald-500/20",
+    chip: "bg-wash-pos text-forest",
   },
   poor: {
     label: "Aged poorly",
-    chip: "bg-rose-500/10 text-rose-300 ring-1 ring-rose-500/20",
+    chip: "bg-wash-neg text-terracotta",
   },
   neutral: {
     label: "Neutral",
-    chip: "bg-slate-500/10 text-slate-300 ring-1 ring-slate-500/20",
+    chip: "bg-ochre/10 text-ochre",
   },
   insufficient_data: {
     label: "No data",
-    chip: "bg-slate-500/10 text-slate-400 ring-1 ring-slate-500/20",
+    chip: "bg-inset text-faint",
   },
 };
 
@@ -41,14 +41,14 @@ export function AdviceReportCard({ review }: { review: AdviceReview }) {
   if (review.calls.length === 0) return null;
 
   return (
-    <section className="rounded-xl border border-slate-800 bg-slate-900/60 p-5">
-      <div className="mb-1 flex items-center justify-between gap-3">
-        <h2 className="text-sm font-medium tracking-wide text-slate-300">
+    <section className="rounded-[4px] border border-line bg-card p-5">
+      <div className="mb-1 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+        <h2 className="font-serif text-lg font-medium text-ink">
           How last report&apos;s calls aged
         </h2>
-        <span className="text-xs text-slate-500">{review.summary}</span>
+        <span className="text-xs text-faint">{review.summary}</span>
       </div>
-      <p className="mb-3 text-xs text-slate-600">
+      <p className="mb-3 text-xs text-label">
         Backward-looking, single-step grade since {review.recommended_at} — not a
         performance guarantee.
       </p>
@@ -60,17 +60,17 @@ export function AdviceReportCard({ review }: { review: AdviceReview }) {
           return (
             <div
               key={`${call.asset}-${call.action}`}
-              className="flex items-center gap-3 rounded-lg border border-slate-800 bg-slate-900/40 p-3"
+              className="flex items-center gap-3 rounded-[4px] border border-line bg-card p-3"
             >
-              <span className="font-mono text-sm text-slate-200">{call.asset}</span>
-              <span className="text-sm text-slate-400">
+              <span className="rounded-[2px] bg-chip px-1.5 py-0.5 font-mono text-sm text-ink">{call.asset}</span>
+              <span className="text-sm text-muted">
                 {ACTION_LABEL[call.action]}
               </span>
               <span className="ml-auto font-mono text-xs">
                 {move == null ? (
-                  <span className="text-slate-500">—</span>
+                  <span className="text-faint">—</span>
                 ) : (
-                  <span className={up ? "text-emerald-400" : "text-rose-400"}>
+                  <span className={up ? "text-forest" : "text-terracotta"}>
                     {up ? "▲" : "▼"} {Math.abs(move).toFixed(2)}%
                   </span>
                 )}

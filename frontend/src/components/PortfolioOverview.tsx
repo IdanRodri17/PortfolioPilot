@@ -23,9 +23,9 @@ import { getPortfolio } from "@/lib/api";
 import type { PortfolioResponse, RiskProfile } from "@/lib/types";
 
 const RISK_STYLES: Record<RiskProfile, string> = {
-  conservative: "bg-sky-500/10 text-sky-300 ring-1 ring-sky-500/20",
-  balanced: "bg-emerald-500/10 text-emerald-300 ring-1 ring-emerald-500/20",
-  aggressive: "bg-amber-500/10 text-amber-300 ring-1 ring-amber-500/20",
+  conservative: "border border-pos-line text-forest",
+  balanced: "border border-pos-line text-forest",
+  aggressive: "border border-ochre/40 text-ochre",
 };
 
 type State =
@@ -49,19 +49,19 @@ export function PortfolioOverview({ userId }: { userId: string }) {
   }, [userId]);
 
   return (
-    <section className="rounded-xl border border-slate-800 bg-slate-900/60 p-5">
-      <h2 className="mb-3 text-sm font-medium tracking-wide text-slate-300">
+    <section className="rounded-[4px] border border-line bg-card p-5">
+      <h2 className="mb-3 text-xs font-semibold uppercase tracking-[0.12em] text-faint">
         Holdings
       </h2>
 
       {state.status === "loading" && (
-        <p className="py-6 text-center text-sm text-slate-600">
+        <p className="py-6 text-center text-sm text-faint">
           Loading portfolio…
         </p>
       )}
 
       {state.status === "error" && (
-        <p className="py-6 text-center text-sm text-rose-400">
+        <p className="py-6 text-center text-sm text-terracotta">
           Could not load portfolio.
         </p>
       )}
@@ -74,7 +74,7 @@ export function PortfolioOverview({ userId }: { userId: string }) {
             >
               {state.data.risk_profile}
             </span>
-            <span className="text-xs text-slate-500">
+            <span className="text-xs text-faint">
               {Object.keys(state.data.assets).length} assets
             </span>
           </div>
@@ -85,12 +85,12 @@ export function PortfolioOverview({ userId }: { userId: string }) {
               .map(([symbol, qty]) => (
                 <li
                   key={symbol}
-                  className="flex items-center justify-between rounded-lg px-3 py-2 odd:bg-slate-900/40"
+                  className="flex items-center justify-between rounded-[2px] px-3 py-2 odd:bg-chip"
                 >
-                  <span className="rounded bg-slate-800 px-1.5 py-0.5 font-mono text-xs text-slate-200">
+                  <span className="rounded-[2px] bg-chip px-1.5 py-0.5 font-mono text-xs text-ink">
                     {symbol}
                   </span>
-                  <span className="font-mono text-sm text-slate-300">{qty}</span>
+                  <span className="font-mono text-sm text-label">{qty}</span>
                 </li>
               ))}
           </ul>

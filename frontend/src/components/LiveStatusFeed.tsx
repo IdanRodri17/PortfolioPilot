@@ -92,8 +92,8 @@ function RunningDot() {
   // core stays put. Several of these pulsing at once IS the burst.
   return (
     <span className="relative flex h-2.5 w-2.5">
-      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-75" />
-      <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-amber-400" />
+      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-ochre opacity-75" />
+      <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-ochre" />
     </span>
   );
 }
@@ -101,7 +101,7 @@ function RunningDot() {
 function DoneCheck() {
   return (
     <svg
-      className="h-4 w-4 text-emerald-400"
+      className="h-4 w-4 text-forest"
       viewBox="0 0 20 20"
       fill="none"
       stroke="currentColor"
@@ -128,18 +128,18 @@ export function LiveStatusFeed({ statuses, phase }: LiveStatusFeedProps) {
           : "Idle";
 
   return (
-    <section className="rounded-xl border border-slate-800 bg-slate-900/60 p-5">
+    <section className="rounded-[4px] border border-line bg-card p-5">
       <header className="mb-4 flex items-center justify-between">
-        <h2 className="text-sm font-medium tracking-wide text-slate-300">
+        <h2 className="font-serif text-lg font-medium text-ink">
           Analysis pipeline
         </h2>
-        <span className="text-xs font-medium uppercase tracking-wider text-slate-500">
+        <span className="text-xs font-semibold uppercase tracking-[0.12em] text-faint">
           {phaseLabel}
         </span>
       </header>
 
       {rows.length === 0 ? (
-        <p className="py-6 text-center text-sm text-slate-600">
+        <p className="py-6 text-center text-sm text-faint">
           Run a report to watch the agents work.
         </p>
       ) : (
@@ -147,20 +147,20 @@ export function LiveStatusFeed({ statuses, phase }: LiveStatusFeedProps) {
           {rows.map((row) => (
             <li
               key={row.key}
-              className={`flex items-center gap-3 rounded-lg px-3 py-2 transition-colors ${
-                row.running ? "bg-amber-400/5" : ""
+              className={`flex items-center gap-3 rounded-[2px] px-3 py-2 transition-colors ${
+                row.running ? "bg-inset" : ""
               }`}
             >
               <span className="flex w-4 justify-center">
                 {row.done ? <DoneCheck /> : <RunningDot />}
               </span>
-              <span className="text-sm text-slate-200">{row.label}</span>
+              <span className="text-sm text-ink">{row.label}</span>
               {row.symbol && (
-                <span className="rounded bg-slate-800 px-1.5 py-0.5 font-mono text-xs text-slate-300">
+                <span className="rounded-[2px] bg-chip px-1.5 py-0.5 font-mono text-xs text-muted">
                   {row.symbol}
                 </span>
               )}
-              <span className="ml-auto text-xs text-slate-500">
+              <span className="ml-auto text-xs text-faint">
                 {row.done ? "done" : "running"}
               </span>
             </li>

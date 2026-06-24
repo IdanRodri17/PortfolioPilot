@@ -15,7 +15,7 @@ import type { ReportDiff } from "@/lib/types";
 export function SinceLastReport({ diff }: { diff: ReportDiff }) {
   if (diff.first_report) {
     return (
-      <div className="rounded-xl border border-slate-800 bg-slate-900/40 px-4 py-2.5 text-sm text-slate-500">
+      <div className="rounded-[4px] border border-line bg-card px-4 py-2.5 text-sm text-faint">
         First report — nothing to compare yet.
       </div>
     );
@@ -29,10 +29,10 @@ export function SinceLastReport({ diff }: { diff: ReportDiff }) {
     chips.push(
       <span
         key="val"
-        className={`rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ${
+        className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
           up
-            ? "bg-emerald-500/10 text-emerald-300 ring-emerald-500/20"
-            : "bg-rose-500/10 text-rose-300 ring-rose-500/20"
+            ? "bg-wash-pos text-forest"
+            : "bg-wash-neg text-terracotta"
         }`}
       >
         Value {up ? "+" : ""}
@@ -45,9 +45,9 @@ export function SinceLastReport({ diff }: { diff: ReportDiff }) {
     chips.push(
       <span
         key={`s-${f.asset}`}
-        className="rounded-full bg-slate-800 px-2.5 py-0.5 text-xs text-slate-300"
+        className="rounded-full bg-chip px-2.5 py-0.5 text-xs text-muted"
       >
-        <span className="font-mono text-slate-200">{f.asset}</span> {f.previous} →{" "}
+        <span className="font-mono text-ink">{f.asset}</span> {f.previous} →{" "}
         {f.current}
       </span>,
     );
@@ -57,7 +57,7 @@ export function SinceLastReport({ diff }: { diff: ReportDiff }) {
     chips.push(
       <span
         key={`n-${rec}`}
-        className="rounded-full bg-amber-500/10 px-2.5 py-0.5 text-xs text-amber-300 ring-1 ring-amber-500/20"
+        className="rounded-full bg-ochre/10 px-2.5 py-0.5 text-xs text-ochre"
       >
         New: {rec}
       </span>,
@@ -68,7 +68,7 @@ export function SinceLastReport({ diff }: { diff: ReportDiff }) {
     chips.push(
       <span
         key={`r-${rec}`}
-        className="rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-xs text-emerald-300 ring-1 ring-emerald-500/20"
+        className="rounded-full bg-wash-pos px-2.5 py-0.5 text-xs text-forest"
       >
         Resolved: {rec}
       </span>,
@@ -76,15 +76,15 @@ export function SinceLastReport({ diff }: { diff: ReportDiff }) {
   }
 
   return (
-    <div className="rounded-xl border border-slate-800 bg-slate-900/40 px-4 py-3">
+    <div className="rounded-[4px] border border-line bg-card px-4 py-3">
       <div className="flex flex-wrap items-center gap-2">
-        <span className="text-xs uppercase tracking-wider text-slate-500">
+        <span className="text-xs font-semibold uppercase tracking-[0.12em] text-faint">
           Since last report
         </span>
         {chips.length > 0 ? (
           chips
         ) : (
-          <span className="text-sm text-slate-500">No material changes.</span>
+          <span className="text-sm text-faint">No material changes.</span>
         )}
       </div>
     </div>

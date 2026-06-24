@@ -1,33 +1,59 @@
 @import "tailwindcss";
 
+/* ─── Editorial theme (Direction A) ───────────────────────────────────────────
+   Warm-paper, light theme. Replaces the former dark slate/emerald set. The
+   palette is exposed through @theme so components use semantic utilities —
+   bg-paper, bg-card, text-ink, text-muted, text-forest, border-line, etc. —
+   instead of hard-coded hexes. */
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f0ebe0;
+  --foreground: #2a2622;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+  --font-sans: var(--font-hanken);
+  --font-serif: var(--font-spectral);
+  --font-mono: var(--font-jetbrains);
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  /* Surfaces & ink */
+  --color-backdrop: #f0ebe0;
+  --color-paper: #fbf8f2;
+  --color-card: #fffdf8;
+  --color-inset: #f6f1e7;
+  --color-chip: #f0eadd;
+  --color-line: #ece5d8;
+  --color-line-strong: #e6dfd0;
+  --color-field: #dcd3c2;
+  --color-ink: #2a2622;
+  --color-ink-soft: #3a352e;
+  --color-muted: #6b6357;
+  --color-label: #8a8175;
+  --color-faint: #a89e8e;
+
+  /* Semantic accents */
+  --color-forest: #2f5d45;
+  --color-forest-soft: #4a7a5c;
+  --color-forest-deep: #26492f;
+  --color-terracotta: #a23b2d;
+  --color-ochre: #b07d2b;
+  --color-wash-pos: #eaf1ec;
+  --color-wash-neg: #fbeeea;
+  --color-pos-line: #c7d6cc;
+  --color-neg-line: #e5c3bb;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans), system-ui, sans-serif;
 }
 
-/* V15b: clean "Save as PDF" via the browser. The app is dark-themed; for print
-   we flip to a crisp light document (readable, ink-friendly) and hide all
-   interactive chrome marked .no-print. Screen view is untouched. */
+/* Save-as-PDF (V15b): the app is light now, so print mirrors the screen. Hide
+   interactive chrome (.no-print), keep inline fills (donut/legend/meters), and
+   avoid splitting a card across a page break. */
 @media print {
   @page {
     margin: 1.4cm;
@@ -37,54 +63,18 @@ body {
     display: none !important;
   }
 
-  /* Light canvas. */
   html,
   body {
     background: #ffffff !important;
-    color: #0f172a !important;
   }
 
-  /* Inline fills (donut slices, legend swatches, meter bars) must still print. */
   * {
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
 
-  /* Dark surfaces -> white cards with hairline borders. */
-  [class*="bg-slate-9"],
-  [class*="bg-slate-8"] {
-    background: transparent !important;
-  }
-  [class*="border-slate-"] {
-    border-color: #e2e8f0 !important;
-  }
-
-  /* Slate text -> readable grays. */
-  [class*="text-slate-1"],
-  [class*="text-slate-2"],
-  [class*="text-slate-3"] {
-    color: #0f172a !important;
-  }
-  [class*="text-slate-4"],
-  [class*="text-slate-5"],
-  [class*="text-slate-6"] {
-    color: #475569 !important;
-  }
-
-  /* Keep accent meaning, but at print-readable contrast on white. */
-  [class*="text-emerald-"] {
-    color: #047857 !important;
-  }
-  [class*="text-rose-"] {
-    color: #be123c !important;
-  }
-  [class*="text-amber-"] {
-    color: #b45309 !important;
-  }
-
-  /* Don't split a card across a page break where it can be helped. */
   section,
-  [class*="rounded-xl"] {
+  [class*="rounded"] {
     break-inside: avoid;
   }
 }

@@ -35,26 +35,26 @@ export default function DemoPage() {
   } = useReportStream();
 
   return (
-    <main className="min-h-screen bg-slate-950 text-slate-100">
-      <div className="mx-auto max-w-5xl px-6 py-10">
+    <main className="min-h-screen bg-backdrop text-ink">
+      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 sm:py-10">
         {/* Demo banner */}
-        <div className="no-print mb-6 rounded-lg border border-emerald-600/30 bg-emerald-500/5 px-4 py-3 text-sm text-emerald-300/90">
+        <div className="no-print mb-6 rounded-[4px] border border-pos-line bg-wash-pos px-4 py-3 text-sm text-forest">
           Live demo on a sample portfolio — a real AI report, nothing saved.{" "}
-          <Link href="/login" className="font-medium underline hover:text-emerald-200">
+          <Link href="/login" className="font-semibold underline hover:text-forest-deep">
             Sign up
           </Link>{" "}
           to track your own holdings.
         </div>
 
-        <header className="no-print mb-8 flex items-center justify-between gap-4">
+        <header className="no-print mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-2xl font-semibold tracking-tight">PortfolioPilot</h1>
-            <p className="mt-1 text-sm text-slate-500">AI portfolio analysis · demo</p>
+            <h1 className="font-serif text-2xl font-medium tracking-[-0.01em]">PortfolioPilot</h1>
+            <p className="mt-1 text-sm text-muted">AI portfolio analysis · demo</p>
           </div>
           <button
             onClick={() => start(DEMO_USER)}
             disabled={phase === "streaming"}
-            className="rounded-lg bg-emerald-600 px-4 py-2 font-medium text-white transition-colors hover:bg-emerald-500 disabled:opacity-50"
+            className="min-h-[40px] shrink-0 rounded-[2px] bg-forest px-5 py-2 font-semibold text-paper transition-colors hover:bg-forest-deep disabled:opacity-50"
           >
             {phase === "streaming" ? "Analyzing…" : "Generate report"}
           </button>
@@ -73,7 +73,7 @@ export default function DemoPage() {
             </div>
 
             {error && (
-              <p className="rounded-lg bg-rose-500/10 px-4 py-3 text-sm text-rose-300 ring-1 ring-rose-500/20">
+              <p className="rounded-[4px] border border-neg-line bg-wash-neg px-4 py-3 text-sm text-terracotta">
                 {error.message}
               </p>
             )}
@@ -89,7 +89,7 @@ export default function DemoPage() {
               />
             ) : (
               phase !== "streaming" && (
-                <p className="rounded-xl border border-dashed border-slate-800 px-4 py-10 text-center text-sm text-slate-600">
+                <p className="rounded-[4px] border border-dashed border-line px-4 py-10 text-center text-sm text-faint">
                   Generate a report to see the analysis here.
                 </p>
               )

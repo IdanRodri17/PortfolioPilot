@@ -59,8 +59,8 @@ export function ReportChat({ reportId }: { reportId: string }) {
   }
 
   return (
-    <section className="rounded-xl border border-slate-800 bg-slate-900/60 p-5">
-      <h2 className="mb-3 text-sm font-medium tracking-wide text-slate-300">
+    <section className="rounded-[4px] border border-line bg-card p-5">
+      <h2 className="mb-3 font-serif text-lg font-medium tracking-wide text-ink">
         Ask about this report
       </h2>
 
@@ -71,11 +71,11 @@ export function ReportChat({ reportId }: { reportId: string }) {
               key={i}
               className={
                 m.role === "user"
-                  ? "text-sm text-slate-300"
-                  : "text-sm leading-relaxed text-slate-400"
+                  ? "text-sm text-muted"
+                  : "text-sm leading-relaxed text-muted"
               }
             >
-              <span className="mr-2 text-xs uppercase tracking-wider text-slate-600">
+              <span className="mr-2 text-xs uppercase tracking-wider text-faint">
                 {m.role === "user" ? "You" : "Pilot"}
               </span>
               {m.text ||
@@ -85,23 +85,23 @@ export function ReportChat({ reportId }: { reportId: string }) {
         </div>
       )}
 
-      <form onSubmit={submit} className="flex gap-2">
+      <form onSubmit={submit} className="flex flex-col gap-2 sm:flex-row">
         <input
           value={input}
           onChange={(e) => setInput(e.target.value)}
           placeholder="Why reduce AAPL?"
           disabled={streaming}
-          className="flex-1 rounded-lg border border-slate-800 bg-slate-900 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-600 focus:border-emerald-600 focus:outline-none disabled:opacity-50"
+          className="min-h-[40px] flex-1 rounded-[3px] border border-field bg-card px-3 py-2 text-sm text-ink placeholder:text-faint focus:border-forest focus:outline-none disabled:opacity-50"
         />
         <button
           type="submit"
           disabled={streaming || input.trim() === ""}
-          className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-emerald-500 disabled:opacity-50"
+          className="min-h-[40px] rounded-[2px] bg-forest px-4 py-2 text-sm font-medium text-paper transition-colors hover:bg-forest-deep disabled:opacity-50"
         >
           {streaming ? "…" : "Ask"}
         </button>
       </form>
-      <p className="mt-2 text-xs text-slate-600">
+      <p className="mt-2 text-xs text-faint">
         Answers come only from this report — not financial advice.
       </p>
     </section>

@@ -68,20 +68,20 @@ function rowsToAssets(rows: Row[]): { assets?: Record<string, number>; error?: s
 function TickerStatusLine({ status }: { status?: TickerStatus }) {
   if (!status) return null;
   if (status.state === "checking")
-    return <p className="mt-1 pl-1 text-xs text-slate-500">Checking…</p>;
+    return <p className="mt-1 pl-1 text-xs text-faint">Checking…</p>;
   if (status.state === "valid")
     return (
-      <p className="mt-1 pl-1 text-xs text-emerald-400">
+      <p className="mt-1 pl-1 text-xs text-forest">
         {status.name} · {formatMoney(status.price, status.currency)}
       </p>
     );
   if (status.state === "invalid")
     return (
-      <p className="mt-1 pl-1 text-xs text-rose-400">Couldn’t find that ticker.</p>
+      <p className="mt-1 pl-1 text-xs text-terracotta">Couldn’t find that ticker.</p>
     );
   // network error — couldn't verify; explicitly non-blocking
   return (
-    <p className="mt-1 pl-1 text-xs text-amber-400">
+    <p className="mt-1 pl-1 text-xs text-ochre">
       Couldn’t verify right now — you can still save.
     </p>
   );
@@ -218,35 +218,37 @@ export default function PortfolioEditorPage() {
   });
 
   return (
-    <main className="min-h-screen bg-slate-950 text-slate-100">
-      <div className="mx-auto max-w-2xl px-6 py-10">
+    <main className="min-h-screen bg-backdrop text-ink">
+      <div className="mx-auto max-w-2xl px-4 py-10 sm:px-6">
         <Link
           href="/"
-          className="text-sm text-slate-500 transition-colors hover:text-slate-300"
+          className="text-sm text-label transition-colors hover:text-ink"
         >
           ← Dashboard
         </Link>
 
-        <h1 className="mt-3 text-2xl font-semibold tracking-tight">Edit portfolio</h1>
-        <p className="mt-1 text-sm text-slate-500">
+        <h1 className="mt-3 font-serif text-3xl font-medium tracking-[-0.02em] sm:text-4xl">
+          Edit portfolio
+        </h1>
+        <p className="mt-1 text-sm text-muted">
           Update holdings and risk profile, then save.
         </p>
 
         {load === "loading" && (
-          <p className="mt-8 text-sm text-slate-600">Loading portfolio…</p>
+          <p className="mt-8 text-sm text-faint">Loading portfolio…</p>
         )}
         {load === "error" && (
-          <p className="mt-8 text-sm text-rose-400">Could not load portfolio.</p>
+          <p className="mt-8 text-sm text-terracotta">Could not load portfolio.</p>
         )}
 
         {load === "ready" && (
           <div className="mt-8 space-y-8">
             {/* Risk profile */}
             <section>
-              <h2 className="mb-3 text-sm font-medium tracking-wide text-slate-300">
+              <h2 className="mb-3 font-serif text-lg font-medium text-ink">
                 Risk profile
               </h2>
-              <div className="inline-flex rounded-lg border border-slate-800 p-1">
+              <div className="inline-flex flex-wrap rounded-[4px] border border-line p-1">
                 {RISK_PROFILES.map((p) => (
                   <button
                     key={p}
@@ -254,10 +256,10 @@ export default function PortfolioEditorPage() {
                       setRiskProfile(p);
                       touched();
                     }}
-                    className={`rounded-md px-3 py-1.5 text-sm capitalize transition-colors ${
+                    className={`min-h-[40px] rounded-[2px] px-3 py-1.5 text-sm capitalize transition-colors ${
                       riskProfile === p
-                        ? "bg-emerald-600 text-white"
-                        : "text-slate-400 hover:text-slate-200"
+                        ? "bg-forest text-paper"
+                        : "text-muted hover:text-ink"
                     }`}
                   >
                     {p}
@@ -268,10 +270,10 @@ export default function PortfolioEditorPage() {
 
             {/* Assets */}
             <section>
-              <h2 className="mb-1 text-sm font-medium tracking-wide text-slate-300">
+              <h2 className="mb-1 font-serif text-lg font-medium text-ink">
                 Assets
               </h2>
-              <p className="mb-3 text-xs text-slate-500">
+              <p className="mb-3 text-xs text-faint">
                 Quantities can be fractional — enter 0.5, 1.25, etc.
               </p>
               <div className="space-y-3">
@@ -288,10 +290,10 @@ export default function PortfolioEditorPage() {
                             updateRow(row.id, "symbol", e.target.value.toUpperCase())
                           }
                           placeholder="AAPL"
-                          className={`w-28 rounded-lg border bg-slate-900 px-3 py-2 font-mono text-sm text-slate-100 placeholder:text-slate-600 focus:outline-none ${
+                          className={`w-28 min-h-[40px] rounded-[3px] border bg-card px-3 py-2 font-mono text-sm text-ink placeholder:text-faint focus:outline-none ${
                             invalid
-                              ? "border-rose-700 focus:border-rose-600"
-                              : "border-slate-800 focus:border-emerald-600"
+                              ? "border-neg-line focus:border-terracotta"
+                              : "border-field focus:border-forest"
                           }`}
                         />
                         <input
@@ -300,12 +302,12 @@ export default function PortfolioEditorPage() {
                           type="text"
                           inputMode="decimal"
                           placeholder="0.5"
-                          className="w-32 rounded-lg border border-slate-800 bg-slate-900 px-3 py-2 font-mono text-sm text-slate-100 placeholder:text-slate-600 focus:border-emerald-600 focus:outline-none"
+                          className="w-full min-w-0 min-h-[40px] rounded-[3px] border border-field bg-card px-3 py-2 font-mono text-sm text-ink placeholder:text-faint focus:border-forest focus:outline-none"
                         />
                         <button
                           onClick={() => removeRow(row.id)}
                           aria-label={`Remove ${row.symbol || "asset"}`}
-                          className="rounded-lg px-2 py-2 text-slate-500 transition-colors hover:text-rose-400"
+                          className="min-h-[40px] shrink-0 rounded-[2px] px-2 py-2 text-faint transition-colors hover:text-terracotta"
                         >
                           ✕
                         </button>
@@ -317,29 +319,29 @@ export default function PortfolioEditorPage() {
               </div>
               <button
                 onClick={addRow}
-                className="mt-3 text-sm text-emerald-400 transition-colors hover:text-emerald-300"
+                className="mt-3 text-sm text-forest transition-colors hover:text-forest-deep"
               >
                 + Add asset
               </button>
             </section>
 
             {/* Save */}
-            <section className="flex items-center gap-4">
+            <section className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
               <button
                 onClick={handleSave}
                 disabled={save.status === "saving" || hasInvalidTicker}
-                className="rounded-lg bg-emerald-600 px-4 py-2 font-medium text-white transition-colors hover:bg-emerald-500 disabled:opacity-50"
+                className="min-h-[40px] rounded-[2px] bg-forest px-4 py-2 font-medium text-paper transition-colors hover:bg-forest-deep disabled:opacity-50"
               >
                 {save.status === "saving" ? "Saving…" : "Save portfolio"}
               </button>
               {save.status === "saved" && (
-                <span className="text-sm text-emerald-400">Saved.</span>
+                <span className="text-sm text-forest">Saved.</span>
               )}
               {save.status === "error" && (
-                <span className="text-sm text-rose-400">{save.message}</span>
+                <span className="text-sm text-terracotta">{save.message}</span>
               )}
               {hasInvalidTicker && save.status !== "error" && (
-                <span className="text-sm text-rose-400">
+                <span className="text-sm text-terracotta">
                   Fix the invalid ticker(s) before saving.
                 </span>
               )}

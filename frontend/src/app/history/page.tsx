@@ -42,9 +42,9 @@ function TrendTooltip({ active, payload }: TrendTooltipProps) {
   if (!active || !payload?.length) return null;
   const point = payload[0].payload;
   return (
-    <div className="rounded-md border border-slate-700 bg-slate-900/95 px-3 py-2 text-xs shadow-lg">
-      <p className="text-slate-400">{point.label}</p>
-      <p className="font-mono text-slate-200">{usd.format(point.total)}</p>
+    <div className="rounded-[3px] border border-line bg-card px-3 py-2 text-xs shadow-lg">
+      <p className="text-muted">{point.label}</p>
+      <p className="font-mono text-ink">{usd.format(point.total)}</p>
     </div>
   );
 }
@@ -60,23 +60,23 @@ function ValueTrendChart({ series }: { series: ReportSeriesPoint[] }) {
     total: p.total_usd,
   }));
   return (
-    <section className="mt-8 rounded-xl border border-slate-800 bg-slate-900/60 p-5">
-      <h2 className="mb-4 text-sm font-medium tracking-wide text-slate-300">
+    <section className="mt-8 rounded-[4px] border border-line bg-card p-5">
+      <h2 className="mb-4 font-serif text-lg font-medium tracking-wide text-ink">
         Portfolio value over time
       </h2>
       <ResponsiveContainer width="100%" height={220}>
         <LineChart data={data} margin={{ top: 5, right: 12, left: 0, bottom: 0 }}>
-          <CartesianGrid stroke="#1e293b" strokeDasharray="3 3" />
+          <CartesianGrid stroke="#ECE5D8" strokeDasharray="3 3" />
           <XAxis
             dataKey="label"
-            stroke="#64748b"
+            stroke="#8A8175"
             fontSize={11}
             tickLine={false}
-            axisLine={{ stroke: "#1e293b" }}
+            axisLine={{ stroke: "#ECE5D8" }}
             minTickGap={24}
           />
           <YAxis
-            stroke="#64748b"
+            stroke="#8A8175"
             fontSize={11}
             tickLine={false}
             axisLine={false}
@@ -87,9 +87,9 @@ function ValueTrendChart({ series }: { series: ReportSeriesPoint[] }) {
           <Line
             type="monotone"
             dataKey="total"
-            stroke="#34d399"
+            stroke="#2F5D45"
             strokeWidth={2}
-            dot={{ r: 3, fill: "#34d399" }}
+            dot={{ r: 3, fill: "#2F5D45" }}
             activeDot={{ r: 5 }}
             isAnimationActive={false}
           />
@@ -148,25 +148,25 @@ export default function HistoryPage() {
   }, [selected]);
 
   return (
-    <main className="min-h-screen bg-slate-950 text-slate-100">
-      <div className="mx-auto max-w-3xl px-6 py-10">
+    <main className="min-h-screen bg-backdrop text-ink">
+      <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6 sm:py-10">
         <div className="no-print">
-          <Link href="/" className="text-sm text-slate-500 transition-colors hover:text-slate-300">
+          <Link href="/" className="text-sm text-label transition-colors hover:text-muted">
             ← Dashboard
           </Link>
-          <h1 className="mt-3 text-2xl font-semibold tracking-tight">Report history</h1>
-          <p className="mt-1 text-sm text-slate-500">Past analyses, newest first. Click one to view it.</p>
+          <h1 className="mt-3 font-serif text-3xl font-medium tracking-[-0.02em] sm:text-4xl">Report history</h1>
+          <p className="mt-1 text-sm text-muted">Past analyses, newest first. Click one to view it.</p>
         </div>
 
-        {load === "loading" && <p className="mt-8 text-sm text-slate-600">Loading history…</p>}
-        {load === "error" && <p className="mt-8 text-sm text-rose-400">Could not load history.</p>}
+        {load === "loading" && <p className="mt-8 text-sm text-faint">Loading history…</p>}
+        {load === "error" && <p className="mt-8 text-sm text-terracotta">Could not load history.</p>}
         {load === "ready" && (
           <div className="no-print">
             <ValueTrendChart series={series} />
           </div>
         )}
         {load === "ready" && reports.length === 0 && (
-          <p className="mt-8 rounded-xl border border-dashed border-slate-800 px-4 py-10 text-center text-sm text-slate-600">
+          <p className="mt-8 rounded-[4px] border border-dashed border-line px-4 py-10 text-center text-sm text-faint">
             No reports yet. Generate one from the dashboard.
           </p>
         )}
@@ -181,20 +181,20 @@ export default function HistoryPage() {
                 <li key={r.report_id}>
                   <button
                     onClick={() => openReport(r.report_id)}
-                    className={`flex w-full items-center justify-between gap-4 rounded-lg border px-4 py-3 text-left transition-colors ${
+                    className={`flex min-h-[40px] w-full items-center justify-between gap-4 rounded-[4px] border px-4 py-3 text-left transition-colors ${
                       isSel
-                        ? "border-emerald-600/50 bg-emerald-500/5"
-                        : "border-slate-800 bg-slate-900/40 hover:bg-slate-900"
+                        ? "border-forest bg-wash-pos"
+                        : "border-line bg-card hover:bg-inset"
                     }`}
                   >
                     <div>
-                      <p className="text-sm text-slate-200">
+                      <p className="font-mono text-sm text-ink">
                         {r.total_usd != null ? usd.format(r.total_usd) : "—"}
-                        <span className={`ml-2 text-xs ${up ? "text-emerald-400" : "text-rose-400"}`}>
+                        <span className={`ml-2 text-xs ${up ? "text-forest" : "text-terracotta"}`}>
                           {up ? "▲" : "▼"} {Math.abs(change).toFixed(2)}%
                         </span>
                       </p>
-                      <p className="mt-0.5 text-xs text-slate-500">
+                      <p className="mt-0.5 text-xs text-faint">
                         {new Date(r.generated_at).toLocaleString()}
                       </p>
                     </div>
@@ -202,8 +202,8 @@ export default function HistoryPage() {
                       <span
                         className={`rounded-full px-2 py-0.5 text-xs font-medium ${
                           r.confidence_flag === "high"
-                            ? "bg-emerald-500/10 text-emerald-300 ring-1 ring-emerald-500/20"
-                            : "bg-amber-500/10 text-amber-300 ring-1 ring-amber-500/20"
+                            ? "bg-wash-pos text-forest"
+                            : "bg-ochre/10 text-ochre"
                         }`}
                       >
                         {r.confidence_flag}
@@ -216,19 +216,19 @@ export default function HistoryPage() {
           </ul>
         )}
 
-        {detailLoading && <p className="mt-6 text-sm text-slate-600">Loading report…</p>}
+        {detailLoading && <p className="mt-6 text-sm text-faint">Loading report…</p>}
         {detailError && !detailLoading && (
-          <p className="mt-6 text-sm text-rose-400">{detailError}</p>
+          <p className="mt-6 text-sm text-terracotta">{detailError}</p>
         )}
         {selected && !detailLoading && (
           <div ref={detailRef} className="mt-8 scroll-mt-6">
             <div className="no-print mb-3 flex items-center justify-between">
-              <h2 className="text-sm font-medium tracking-wide text-slate-400">
+              <h2 className="font-serif text-lg font-medium tracking-wide text-muted">
                 Report · {new Date(selected.generated_at).toLocaleString()}
               </h2>
               <button
                 onClick={() => setSelected(null)}
-                className="text-xs text-slate-500 transition-colors hover:text-slate-300"
+                className="text-xs text-label transition-colors hover:text-muted"
               >
                 Close ✕
               </button>

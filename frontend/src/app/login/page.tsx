@@ -12,8 +12,8 @@
  * surfaces here as result.error (a generic CredentialsSignin) — we never learn
  * (or reveal) whether it was the email or the password that was wrong.
  *
- * Theme matches the rest of the app: slate-950 canvas, emerald accent, rose for
- * errors, per-container explicit classes (pattern #29).
+ * Theme matches the rest of the app: the Editorial light theme — warm paper
+ * canvas, forest-green accent, terracotta for errors (pattern #29).
  *
  * Versioning:
  *   V8a: this file.
@@ -65,20 +65,20 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center px-6">
+    <main className="min-h-screen bg-backdrop text-ink flex items-center justify-center px-6">
       <div className="w-full max-w-sm">
         <div className="mb-8 text-center">
-          <h1 className="text-2xl font-semibold tracking-tight">
-            Portfolio<span className="text-emerald-400">Pilot</span>
+          <h1 className="font-serif text-2xl font-medium tracking-[-0.02em]">
+            Portfolio<span className="text-forest">Pilot</span>
           </h1>
-          <p className="mt-1 text-sm text-slate-500">Sign in to your account</p>
+          <p className="mt-1 text-sm text-faint">Sign in to your account</p>
         </div>
 
-        <div className="space-y-4 rounded-xl border border-slate-800 bg-slate-900/60 p-6">
+        <div className="space-y-4 rounded-[4px] border border-line bg-card p-6">
           <div>
             <label
               htmlFor="email"
-              className="block text-xs text-slate-500 mb-1.5"
+              className="block text-xs text-label mb-1.5"
             >
               Email
             </label>
@@ -89,7 +89,7 @@ export default function LoginPage() {
               onChange={(e) => setEmail(e.target.value)}
               onKeyDown={onKeyDown}
               autoComplete="email"
-              className="w-full rounded-lg border border-slate-800 bg-slate-900 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-600 focus:border-emerald-600 focus:outline-none"
+              className="w-full min-h-[40px] rounded-[3px] border border-field bg-card px-3 py-2 text-sm text-ink placeholder:text-faint focus:border-forest focus:outline-none"
               placeholder="you@example.com"
             />
           </div>
@@ -97,7 +97,7 @@ export default function LoginPage() {
           <div>
             <label
               htmlFor="password"
-              className="block text-xs text-slate-500 mb-1.5"
+              className="block text-xs text-label mb-1.5"
             >
               Password
             </label>
@@ -108,13 +108,13 @@ export default function LoginPage() {
               onChange={(e) => setPassword(e.target.value)}
               onKeyDown={onKeyDown}
               autoComplete="current-password"
-              className="w-full rounded-lg border border-slate-800 bg-slate-900 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-600 focus:border-emerald-600 focus:outline-none"
+              className="w-full min-h-[40px] rounded-[3px] border border-field bg-card px-3 py-2 text-sm text-ink placeholder:text-faint focus:border-forest focus:outline-none"
               placeholder="••••••••"
             />
           </div>
 
           {error && (
-            <p className="rounded-lg bg-rose-500/10 px-3 py-2 text-sm text-rose-300 ring-1 ring-rose-500/20">
+            <p className="rounded-[3px] bg-wash-neg px-3 py-2 text-sm text-terracotta">
               {error}
             </p>
           )}
@@ -122,7 +122,7 @@ export default function LoginPage() {
           <button
             onClick={handleSubmit}
             disabled={submitting || !email || !password}
-            className="w-full rounded-lg bg-emerald-600 px-4 py-2 font-medium text-white transition-colors hover:bg-emerald-500 disabled:opacity-50"
+            className="w-full min-h-[40px] rounded-[2px] bg-forest px-4 py-2 font-medium text-paper transition-colors hover:bg-forest-deep disabled:opacity-50"
           >
             {submitting ? "Signing in…" : "Sign in"}
           </button>

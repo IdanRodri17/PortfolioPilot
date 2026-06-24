@@ -23,7 +23,7 @@ import { signOut, useSession } from "next-auth/react";
 import { useUserId } from "@/lib/useUserId";
 
 export default function DashboardPage() {
-  const { userId, loading } = useUserId();
+  const { userId } = useUserId();
   const { data: session } = useSession();
   const {
     phase,
@@ -40,35 +40,38 @@ export default function DashboardPage() {
     start,
   } = useReportStream();
 
+  const busy =
+    phase === "streaming" || phase === "awaiting_review" || phase === "saving";
+
   return (
-    <main className="min-h-screen bg-slate-950 text-slate-100">
-      <div className="mx-auto max-w-5xl px-6 py-10">
-        <header className="no-print mb-8 flex items-center justify-between gap-4">
+    <main className="min-h-screen bg-backdrop text-ink">
+      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 sm:py-10">
+        <header className="no-print mb-8 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <h1 className="text-2xl font-semibold tracking-tight">PortfolioPilot</h1>
-            <p className="mt-1 text-sm text-slate-500">AI portfolio analysis</p>
-            <nav className="mt-2 flex gap-4 text-sm">
-              <Link href="/portfolio" className="text-emerald-400 transition-colors hover:text-emerald-300">
+            <h1 className="font-serif text-2xl font-medium tracking-[-0.01em]">
+              PortfolioPilot
+            </h1>
+            <p className="mt-1 text-sm text-muted">AI portfolio analysis</p>
+            <nav className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm">
+              <Link href="/portfolio" className="text-forest transition-colors hover:text-forest-deep">
                 Edit portfolio
               </Link>
-              <Link href="/history" className="text-slate-400 transition-colors hover:text-slate-200">
+              <Link href="/history" className="text-label transition-colors hover:text-ink">
                 History
               </Link>
-              <Link href="/memory" className="text-slate-400 transition-colors hover:text-slate-200">
+              <Link href="/memory" className="text-label transition-colors hover:text-ink">
                 Memory
               </Link>
-              <Link href="/settings" className="text-slate-400 transition-colors hover:text-slate-200">
+              <Link href="/settings" className="text-label transition-colors hover:text-ink">
                 Settings
               </Link>
-                            {session?.user?.email && (
-                <span className="ml-2 text-slate-600">·</span>
-              )}
+              {session?.user?.email && <span className="text-faint">·</span>}
               {session?.user?.email && (
-                <span className="text-slate-500">{session.user.email}</span>
+                <span className="text-faint">{session.user.email}</span>
               )}
               <button
                 onClick={() => signOut({ callbackUrl: "/login" })}
-                className="text-slate-400 transition-colors hover:text-rose-400"
+                className="text-label transition-colors hover:text-terracotta"
               >
                 Sign out
               </button>
@@ -76,11 +79,9 @@ export default function DashboardPage() {
           </div>
           <button
             onClick={() => userId && start(userId)}
-            disabled={phase === "streaming" || phase === "awaiting_review" || phase === "saving"}
-            className="rounded-lg bg-emerald-600 px-4 py-2 font-medium text-white transition-colors hover:bg-emerald-500 disabled:opacity-50">
-            {phase === "streaming" || phase === "awaiting_review" || phase === "saving"
-              ? "Analyzing…"
-              : "Generate report"}
+            disabled={busy}
+            className="min-h-[40px] shrink-0 rounded-[2px] bg-forest px-5 py-2 font-semibold text-paper transition-colors hover:bg-forest-deep disabled:opacity-50">
+            {busy ? "Analyzing…" : "Generate report"}
           </button>
         </header>
 
@@ -90,7 +91,7 @@ export default function DashboardPage() {
             {userId ? (
               <PortfolioOverview userId={userId} />
             ) : (
-              <p className="rounded-xl border border-slate-800 bg-slate-900/60 p-5 text-sm text-slate-600">
+              <p className="rounded-[4px] border border-line bg-card p-5 text-sm text-faint">
                 Loading…
               </p>
             )}
@@ -103,7 +104,7 @@ export default function DashboardPage() {
             </div>
 
             {error && (
-              <p className="rounded-lg bg-rose-500/10 px-4 py-3 text-sm text-rose-300 ring-1 ring-rose-500/20">
+              <p className="rounded-[4px] border border-neg-line bg-wash-neg px-4 py-3 text-sm text-terracotta">
                 {error.message}
               </p>
             )}
@@ -119,7 +120,7 @@ export default function DashboardPage() {
               />
             ) : (
               phase !== "streaming" && (
-                <p className="rounded-xl border border-dashed border-slate-800 px-4 py-10 text-center text-sm text-slate-600">
+                <p className="rounded-[4px] border border-dashed border-line px-4 py-10 text-center text-sm text-faint">
                   Generate a report to see the analysis here.
                 </p>
               )
