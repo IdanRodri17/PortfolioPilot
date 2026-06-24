@@ -124,6 +124,78 @@ def render_telegram_brief(report: dict, base_url: str) -> str:
     return "\n".join(lines)
 
 
+# ─── Threshold alerts (V18) ───────────────────────────────────────────
+
+
+def render_alert_telegram(messages: list[str], base_url: str) -> str:
+    """A short alert brief for Telegram (parse_mode='HTML'). One or more
+    triggered conditions as bullet lines, plus a link back. Pure formatting."""
+    title = (
+        "<b>PortfolioPilot</b> — alert"
+        if len(messages) == 1
+        else f"<b>PortfolioPilot</b> — {len(messages)} alerts"
+    )
+    lines = [title, ""]
+    lines += [f"• {_esc(m)}" for m in messages]
+    lines += ["", f'<a href="{_esc(base_url)}/history">Open PortfolioPilot →</a>']
+    return "\n".join(lines)
+
+
+def render_alert_email(messages: list[str], base_url: str) -> str:
+    """A compact HTML alert email — same light palette/shell language as the full
+    report email, trimmed to a heading + one card per triggered condition."""
+    heading = (
+        "Portfolio alert"
+        if len(messages) == 1
+        else f"{len(messages)} portfolio alerts"
+    )
+    cards = "".join(
+        f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" '
+        f'style="border:1px solid {_BORDER};border-radius:10px;margin:0 0 10px;">'
+        f'<tr><td style="padding:14px 16px;font-size:14px;line-height:1.55;color:{_INK};">'
+        f"{_esc(m)}</td></tr></table>"
+        for m in messages
+    )
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light">
+<title>PortfolioPilot alert</title>
+</head>
+<body style="margin:0;padding:0;background:{_PAGE_BG};">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:{_PAGE_BG};padding:28px 12px;">
+  <tr><td align="center">
+    <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="width:600px;max-width:100%;background:{_CARD_BG};border:1px solid {_BORDER};border-radius:16px;overflow:hidden;font-family:{_FONT};">
+      <tr><td style="padding:24px 28px;border-bottom:1px solid {_BORDER};">
+        <span style="font-size:17px;font-weight:700;letter-spacing:-.01em;color:{_INK};">Portfolio<span style="color:{_EMERALD};">Pilot</span></span>
+      </td></tr>
+      <tr><td style="padding:24px 28px 8px;">
+        {_section_heading(heading)}
+        {cards}
+      </td></tr>
+      <tr><td style="padding:8px 28px 28px;">
+        <table role="presentation" cellpadding="0" cellspacing="0"><tr>
+          <td style="background:{_EMERALD};border-radius:10px;">
+            <a href="{_esc(base_url)}/history" style="display:inline-block;padding:12px 22px;font-family:{_FONT};font-size:14px;font-weight:600;color:#ffffff;text-decoration:none;">Open PortfolioPilot →</a>
+          </td>
+        </tr></table>
+      </td></tr>
+      <tr><td style="padding:18px 28px;border-top:1px solid {_BORDER};background:#fafbfc;">
+        <p style="margin:0;font-size:12px;line-height:1.5;color:{_FAINT};">
+          You're getting this because you enabled threshold alerts.
+          <a href="{_esc(base_url)}/settings" style="color:{_MUTED};">Manage alerts</a>.
+        </p>
+        <p style="margin:8px 0 0;font-size:11px;color:{_FAINT};">Informational only — not financial advice.</p>
+      </td></tr>
+    </table>
+  </td></tr>
+</table>
+</body>
+</html>"""
+
+
 # ─── Email HTML (full report) ─────────────────────────────────────────
 
 

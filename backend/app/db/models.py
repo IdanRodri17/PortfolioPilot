@@ -13,7 +13,7 @@ outside this Base.metadata namespace by design.
 
 from datetime import time
 
-from sqlalchemy import Column, String, Integer, DateTime, ForeignKey, Boolean, Time
+from sqlalchemy import Column, String, Integer, Float, DateTime, ForeignKey, Boolean, Time
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -233,6 +233,24 @@ class DeliveryPreference(Base):
 
     # Drives the due-check + dedupe (stamped after a successful send).
     last_sent_at = Column(DateTime(timezone=True), nullable=True)
+
+    # ─── Threshold alerts (V18) ───
+    # Condition-based pushes, evaluated frequently on the SAME scheduler tick as
+    # the digest but as a cheap, deterministic, no-LLM market-data check — never
+    # a graph run. Off by default; alerts_enabled is the master switch (separate
+    # from `enabled`, which governs the scheduled digest) so a user can pause all
+    # alerts without losing their thresholds. Each rule is opt-in via its own
+    # threshold column: NULL = that rule is off.
+    alerts_enabled = Column(Boolean, nullable=False, default=False)
+    alert_price_move_pct = Column(Float, nullable=True)  # any holding's |24h move| >= this
+    alert_portfolio_move_pct = Column(Float, nullable=True)  # whole-portfolio |24h move| >= this
+    alert_concentration_pct = Column(Float, nullable=True)  # any holding's weight >= this
+    # A fired rule won't re-fire until this many hours pass, so a ~10-minute tick
+    # can never spam the same condition.
+    alert_cooldown_hours = Column(Integer, nullable=False, default=12)
+    # Per-rule dedupe heartbeat: {"<rule-key>": "<iso ts of last fire>"}. Mutated
+    # by the evaluator only (never by the prefs API). New rows start empty.
+    alert_state = Column(JSONB, nullable=False, default=dict, server_default="{}")
 
     updated_at = Column(
         DateTime(timezone=True),

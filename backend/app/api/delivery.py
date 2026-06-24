@@ -33,6 +33,7 @@ from app.db.base import get_db
 from app.db.models import User, DeliveryPreference
 from app.schemas.delivery import DeliveryPreferenceRequest, DeliveryPreferenceResponse
 from app.api.deps import require_owner
+from app.delivery.alerts import evaluate_for_user
 
 logger = logging.getLogger(__name__)
 
@@ -138,7 +139,31 @@ def upsert_delivery_preferences(
     pref.send_time_local = payload.send_time_local
     pref.timezone = payload.timezone
     pref.enabled = payload.enabled
+    # Threshold alerts (V18). alert_state is owned by the evaluator and is never
+    # touched here — a prefs save changes the rules, not the cooldown heartbeat.
+    pref.alerts_enabled = payload.alerts_enabled
+    pref.alert_price_move_pct = payload.alert_price_move_pct
+    pref.alert_portfolio_move_pct = payload.alert_portfolio_move_pct
+    pref.alert_concentration_pct = payload.alert_concentration_pct
+    pref.alert_cooldown_hours = payload.alert_cooldown_hours
 
     db.commit()
     db.refresh(pref)  # pull the server-side updated_at
     return pref
+
+
+@router.get(
+    "/api/alerts/preview/{user_id}",
+    summary="Preview which threshold alerts would fire right now (no send)",
+)
+async def preview_alerts(
+    user_id: str,
+    _owner: str = Depends(require_owner),
+) -> dict:
+    """Dry-run the alert rules against live prices and return what WOULD fire.
+
+    async because it awaits the (thread-pooled) market fetch. Ignores the master
+    switch and the cooldown so the settings "Preview alerts" button always shows
+    the current truth — it never sends and never mutates alert_state.
+    """
+    return await evaluate_for_user(user_id, dry_run=True)

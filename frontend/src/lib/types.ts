@@ -217,6 +217,12 @@ export interface DeliveryPreference {
   send_time_local: string;      // "HH:MM:SS" wall-clock in `timezone`
   timezone: string;             // IANA name, e.g. "Asia/Jerusalem"
   enabled: boolean;
+  // Threshold alerts (V18). A null threshold = that rule is off.
+  alerts_enabled: boolean;
+  alert_price_move_pct: number | null;
+  alert_portfolio_move_pct: number | null;
+  alert_concentration_pct: number | null;
+  alert_cooldown_hours: number;
   last_sent_at: string | null;  // ISO UTC, or null if never sent
   updated_at: string;           // ISO UTC
 }
@@ -242,4 +248,19 @@ export interface DeliveryPreferenceInput {
   send_time_local: string; // "HH:MM" from an <input type="time"> is fine
   timezone: string;
   enabled: boolean;
+  // Threshold alerts (V18). null = the rule is off.
+  alerts_enabled: boolean;
+  alert_price_move_pct?: number | null;
+  alert_portfolio_move_pct?: number | null;
+  alert_concentration_pct?: number | null;
+  alert_cooldown_hours: number;
+}
+
+// What GET /api/alerts/preview/{user_id} returns: the alert lines that would
+// fire right now (ignoring the master switch + cooldown), for the Preview button.
+export interface AlertPreview {
+  alerts: string[];
+  evaluated_symbols?: string[];
+  alerts_enabled?: boolean;
+  skipped?: string;
 }

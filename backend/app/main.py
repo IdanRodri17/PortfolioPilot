@@ -22,7 +22,9 @@ from app.core.config import get_settings
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from app.delivery.dispatcher import dispatch_due
+from app.delivery.alerts import evaluate_alerts_due
 from app.db.base import Base, engine
+from app.db.light_migrations import run_light_migrations
 
 # Side-effect import: registers User, Portfolio (and V5's Report once it
 # lands) on Base.metadata so create_all() actually creates them. Without
@@ -57,6 +59,9 @@ _ALLOWED_ORIGINS = [
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     Base.metadata.create_all(bind=engine)
+    # Additive ADD COLUMN IF NOT EXISTS for columns create_all can't add to
+    # tables that already exist (e.g. V18's alert fields). Idempotent.
+    run_light_migrations(engine)
     open_store()
     checkpointer = await open_checkpointer()
     set_checkpointer(checkpointer)
@@ -83,9 +88,23 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             timezone.utc
         ),  # fire once on boot, then every interval
     )
+    # Threshold alerts (V18) ride the same tick but are a separate job: a cheap,
+    # deterministic, no-LLM market-data check that pushes condition-based alerts
+    # (price/portfolio move, concentration). Its own per-rule cooldown dedupe
+    # lives in DeliveryPreference.alert_state, so a frequent tick never spams.
+    scheduler.add_job(
+        evaluate_alerts_due,
+        "interval",
+        minutes=interval,
+        id="threshold_alerts",
+        max_instances=1,
+        coalesce=True,
+        next_run_time=datetime.now(timezone.utc),
+    )
     scheduler.start()
     logger.warning(
-        "Delivery scheduler started: dispatch_due now, then every %d min", interval
+        "Delivery scheduler started: dispatch_due + alerts now, then every %d min",
+        interval,
     )
 
     yield

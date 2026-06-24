@@ -75,6 +75,33 @@ class DeliveryPreferenceRequest(BaseModel):
         default=True, description="Master on/off; disabled preferences are never due."
     )
 
+    # ─── Threshold alerts (V18) ───
+    # Condition-based pushes, independent of the scheduled digest above. Each rule
+    # is opt-in: None means that rule is off. alerts_enabled is the master switch.
+    alerts_enabled: bool = Field(
+        default=False,
+        description="Master switch for condition-based alerts (separate from the "
+        "scheduled digest's `enabled`).",
+    )
+    alert_price_move_pct: Optional[float] = Field(
+        default=None,
+        description="Alert when any holding's |24h move| >= this percent. None = off.",
+    )
+    alert_portfolio_move_pct: Optional[float] = Field(
+        default=None,
+        description="Alert when the whole portfolio's |24h move| >= this percent. None = off.",
+    )
+    alert_concentration_pct: Optional[float] = Field(
+        default=None,
+        description="Alert when any holding exceeds this percent of the portfolio. None = off.",
+    )
+    alert_cooldown_hours: int = Field(
+        default=12,
+        ge=1,
+        le=168,
+        description="A fired alert won't repeat for this many hours (1..168).",
+    )
+
     @field_validator("timezone")
     @classmethod
     def _validate_timezone(cls, v: str) -> str:
@@ -102,6 +129,18 @@ class DeliveryPreferenceRequest(BaseModel):
         if self.cadence == "weekly":
             if self.weekday is None or not (0 <= self.weekday <= 6):
                 raise ValueError("cadence 'weekly' requires weekday in 0..6 (0=Mon).")
+
+        # Alert thresholds, when set, must be sensible. A move threshold is a
+        # positive percent; a concentration threshold is a positive percent of
+        # the portfolio (so <= 100). None = the rule is simply off.
+        for name in ("alert_price_move_pct", "alert_portfolio_move_pct"):
+            v = getattr(self, name)
+            if v is not None and v <= 0:
+                raise ValueError(f"{name} must be > 0 when set.")
+        if self.alert_concentration_pct is not None and not (
+            0 < self.alert_concentration_pct <= 100
+        ):
+            raise ValueError("alert_concentration_pct must be in (0, 100] when set.")
         return self
 
 
@@ -125,5 +164,13 @@ class DeliveryPreferenceResponse(BaseModel):
     send_time_local: time
     timezone: str
     enabled: bool
+    # Threshold alerts (V18). alert_state is internal (evaluator-only) and not
+    # surfaced here — the form only needs the master switch, the thresholds, and
+    # the cooldown.
+    alerts_enabled: bool
+    alert_price_move_pct: Optional[float]
+    alert_portfolio_move_pct: Optional[float]
+    alert_concentration_pct: Optional[float]
+    alert_cooldown_hours: int
     last_sent_at: Optional[datetime]
     updated_at: datetime

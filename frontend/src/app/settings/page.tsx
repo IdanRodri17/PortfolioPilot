@@ -19,12 +19,14 @@ import {
   getDeliveryPreferences,
   putDeliveryPreferences,
   connectTelegram,
+  previewAlerts,
   authHeaders,
 } from "@/lib/api";
 import type {
   DeliveryPreference,
   DeliveryPreferencesView,
   DeliveryPreferenceInput,
+  AlertPreview,
   Cadence,
 } from "@/lib/types";
 
@@ -62,6 +64,11 @@ function defaultForm(): DeliveryPreferenceInput {
     send_time_local: "08:00",
     timezone: "Asia/Jerusalem",
     enabled: true,
+    alerts_enabled: false,
+    alert_price_move_pct: null,
+    alert_portfolio_move_pct: null,
+    alert_concentration_pct: null,
+    alert_cooldown_hours: 12,
   };
 }
 
@@ -76,8 +83,20 @@ function preferenceToForm(p: DeliveryPreference): DeliveryPreferenceInput {
     send_time_local: p.send_time_local.slice(0, 5),
     timezone: p.timezone,
     enabled: p.enabled,
+    alerts_enabled: p.alerts_enabled,
+    alert_price_move_pct: p.alert_price_move_pct,
+    alert_portfolio_move_pct: p.alert_portfolio_move_pct,
+    alert_concentration_pct: p.alert_concentration_pct,
+    alert_cooldown_hours: p.alert_cooldown_hours,
   };
 }
+
+// Default thresholds applied when a rule's checkbox is first ticked.
+const ALERT_DEFAULTS = {
+  alert_price_move_pct: 5,
+  alert_portfolio_move_pct: 5,
+  alert_concentration_pct: 40,
+} as const;
 
 function errMsg(e: unknown): string {
   return e instanceof Error ? e.message : String(e);
@@ -93,6 +112,8 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [connecting, setConnecting] = useState(false);
   const [runningNow, setRunningNow] = useState(false);
+  const [previewing, setPreviewing] = useState(false);
+  const [preview, setPreview] = useState<AlertPreview | null>(null);
   const [saveMsg, setSaveMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [connectError, setConnectError] = useState<string | null>(null);
   const [runNowMsg, setRunNowMsg] = useState<string | null>(null);
@@ -113,6 +134,28 @@ export default function SettingsPage() {
     value: DeliveryPreferenceInput[K],
   ) {
     setForm((f) => ({ ...f, [key]: value }));
+  }
+
+  // Tick/untick an alert rule: ticking restores its default threshold, unticking
+  // sets it to null (off). The number input edits the value while ticked.
+  function toggleRule(
+    key: keyof typeof ALERT_DEFAULTS,
+    on: boolean,
+  ) {
+    patch(key, on ? ALERT_DEFAULTS[key] : null);
+    setPreview(null);
+  }
+
+  async function handlePreview() {
+    setPreviewing(true);
+    setPreview(null);
+    try {
+      setPreview(await previewAlerts(userId!));
+    } catch (e) {
+      setPreview({ alerts: [], skipped: errMsg(e) });
+    } finally {
+      setPreviewing(false);
+    }
   }
 
   function handleCadenceChange(newCadence: Cadence) {
@@ -425,7 +468,210 @@ export default function SettingsPage() {
             </section>
           )}
 
-          {/* ── 4. Action row ─────────────────────────────────────────── */}
+          {/* ── 4. Threshold alerts (V18) ─────────────────────────────── */}
+          <section className="rounded-xl border border-slate-800 bg-slate-900 p-5">
+            <div className="mb-4 flex items-center justify-between gap-4">
+              <div>
+                <h2 className="text-xs font-medium uppercase tracking-widest text-slate-500">
+                  Threshold alerts
+                </h2>
+                <p className="mt-1 text-xs text-slate-500">
+                  Get pinged when something happens — not just on your schedule.
+                  Each rule is off until you switch it on.
+                </p>
+              </div>
+              <button
+                onClick={() => patch("alerts_enabled", !form.alerts_enabled)}
+                className={[
+                  "relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 border-transparent",
+                  "transition-colors duration-200 focus:outline-none focus-visible:ring-2",
+                  "focus-visible:ring-emerald-500",
+                  form.alerts_enabled ? "bg-emerald-500" : "bg-slate-700",
+                ].join(" ")}
+                role="switch"
+                aria-checked={form.alerts_enabled}
+                aria-label="Enable threshold alerts"
+              >
+                <span
+                  className={[
+                    "pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow",
+                    "transition duration-200",
+                    form.alerts_enabled ? "translate-x-5" : "translate-x-0",
+                  ].join(" ")}
+                />
+              </button>
+            </div>
+
+            {form.alerts_enabled && !form.deliver_telegram && !form.deliver_email && (
+              <p className="mb-4 rounded-lg bg-amber-500/10 px-3 py-2 text-xs text-amber-500">
+                Turn on a channel above (Email or Telegram) — alerts are sent
+                through the same channels as your reports.
+              </p>
+            )}
+
+            <div className="space-y-3">
+              {/* Price move (per holding) */}
+              <div className="flex items-center gap-3">
+                <input
+                  type="checkbox"
+                  id="rule_price"
+                  checked={form.alert_price_move_pct != null}
+                  onChange={(e) => toggleRule("alert_price_move_pct", e.target.checked)}
+                  className="h-4 w-4 rounded accent-emerald-500 cursor-pointer"
+                />
+                <label htmlFor="rule_price" className="flex-1 text-sm text-slate-200">
+                  Any holding moves by
+                </label>
+                <input
+                  type="number"
+                  min={0.1}
+                  step={0.1}
+                  value={form.alert_price_move_pct ?? ""}
+                  disabled={form.alert_price_move_pct == null}
+                  onChange={(e) => {
+                    patch("alert_price_move_pct", parseFloat(e.target.value) || 0);
+                    setPreview(null);
+                  }}
+                  className="w-20 rounded-lg bg-slate-800 border border-slate-700 px-2.5 py-1.5
+                    text-sm text-slate-100 text-right focus:outline-none focus:border-emerald-600
+                    disabled:opacity-40 disabled:cursor-not-allowed"
+                />
+                <span className="w-24 text-xs text-slate-500">% in 24h</span>
+              </div>
+
+              {/* Portfolio total move */}
+              <div className="flex items-center gap-3">
+                <input
+                  type="checkbox"
+                  id="rule_portfolio"
+                  checked={form.alert_portfolio_move_pct != null}
+                  onChange={(e) => toggleRule("alert_portfolio_move_pct", e.target.checked)}
+                  className="h-4 w-4 rounded accent-emerald-500 cursor-pointer"
+                />
+                <label htmlFor="rule_portfolio" className="flex-1 text-sm text-slate-200">
+                  Whole portfolio moves by
+                </label>
+                <input
+                  type="number"
+                  min={0.1}
+                  step={0.1}
+                  value={form.alert_portfolio_move_pct ?? ""}
+                  disabled={form.alert_portfolio_move_pct == null}
+                  onChange={(e) => {
+                    patch("alert_portfolio_move_pct", parseFloat(e.target.value) || 0);
+                    setPreview(null);
+                  }}
+                  className="w-20 rounded-lg bg-slate-800 border border-slate-700 px-2.5 py-1.5
+                    text-sm text-slate-100 text-right focus:outline-none focus:border-emerald-600
+                    disabled:opacity-40 disabled:cursor-not-allowed"
+                />
+                <span className="w-24 text-xs text-slate-500">% in 24h</span>
+              </div>
+
+              {/* Concentration */}
+              <div className="flex items-center gap-3">
+                <input
+                  type="checkbox"
+                  id="rule_conc"
+                  checked={form.alert_concentration_pct != null}
+                  onChange={(e) => toggleRule("alert_concentration_pct", e.target.checked)}
+                  className="h-4 w-4 rounded accent-emerald-500 cursor-pointer"
+                />
+                <label htmlFor="rule_conc" className="flex-1 text-sm text-slate-200">
+                  Any holding exceeds
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  max={100}
+                  step={1}
+                  value={form.alert_concentration_pct ?? ""}
+                  disabled={form.alert_concentration_pct == null}
+                  onChange={(e) => {
+                    patch(
+                      "alert_concentration_pct",
+                      Math.min(100, parseFloat(e.target.value) || 0),
+                    );
+                    setPreview(null);
+                  }}
+                  className="w-20 rounded-lg bg-slate-800 border border-slate-700 px-2.5 py-1.5
+                    text-sm text-slate-100 text-right focus:outline-none focus:border-emerald-600
+                    disabled:opacity-40 disabled:cursor-not-allowed"
+                />
+                <span className="w-24 text-xs text-slate-500">% of portfolio</span>
+              </div>
+
+              {/* Cooldown */}
+              <div className="flex items-center gap-3 border-t border-slate-800 pt-3">
+                <label htmlFor="cooldown" className="flex-1 text-sm text-slate-300">
+                  Don&apos;t repeat the same alert for
+                </label>
+                <input
+                  id="cooldown"
+                  type="number"
+                  min={1}
+                  max={168}
+                  value={form.alert_cooldown_hours}
+                  onChange={(e) =>
+                    patch(
+                      "alert_cooldown_hours",
+                      Math.min(168, Math.max(1, parseInt(e.target.value) || 1)),
+                    )
+                  }
+                  className="w-20 rounded-lg bg-slate-800 border border-slate-700 px-2.5 py-1.5
+                    text-sm text-slate-100 text-right focus:outline-none focus:border-emerald-600"
+                />
+                <span className="w-24 text-xs text-slate-500">hours</span>
+              </div>
+            </div>
+
+            {/* Preview */}
+            <div className="mt-4 border-t border-slate-800 pt-4">
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={handlePreview}
+                  disabled={previewing}
+                  className="text-xs px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700
+                    text-slate-200 hover:border-emerald-600 hover:text-emerald-400
+                    transition-colors disabled:opacity-50"
+                >
+                  {previewing ? "Checking…" : "Preview alerts now"}
+                </button>
+                <span className="text-xs text-slate-500">
+                  Dry-run against live prices — uses your <em>saved</em> rules, never sends.
+                </span>
+              </div>
+
+              {preview && (
+                <div className="mt-3 text-sm">
+                  {preview.skipped ? (
+                    <p className="text-slate-400">
+                      {preview.skipped === "no alert rules set"
+                        ? "No rules are switched on — tick a rule and Save, then preview."
+                        : preview.skipped}
+                    </p>
+                  ) : preview.alerts.length === 0 ? (
+                    <p className="text-emerald-400">
+                      ✓ Nothing would fire right now — you&apos;re within all your thresholds.
+                    </p>
+                  ) : (
+                    <ul className="space-y-1.5">
+                      {preview.alerts.map((a, i) => (
+                        <li
+                          key={i}
+                          className="rounded-lg bg-amber-500/10 px-3 py-2 text-amber-300"
+                        >
+                          {a}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )}
+            </div>
+          </section>
+
+          {/* ── 5. Action row ─────────────────────────────────────────── */}
           <div className="flex flex-wrap items-center gap-3 pt-1">
             <button
               onClick={handleSave}

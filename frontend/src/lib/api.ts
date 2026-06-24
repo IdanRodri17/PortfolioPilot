@@ -22,6 +22,7 @@ import type {
   DeliveryPreferencesView,
   DeliveryPreference,
   DeliveryPreferenceInput,
+  AlertPreview,
 } from "@/lib/types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL;
@@ -206,6 +207,17 @@ export async function putDeliveryPreferences(
     const detail = await res.json().catch(() => null);
     throw new Error(detail?.detail ?? `Failed to save preferences (${res.status})`);
   }
+  return res.json();
+}
+
+// Dry-run the threshold alerts (V18): GET /api/alerts/preview/{user_id} returns
+// the alert lines that would fire right now, ignoring the master switch + the
+// cooldown. Never sends. Owner-scoped, so it carries the auth header.
+export async function previewAlerts(userId: string): Promise<AlertPreview> {
+  const res = await fetch(`${API_BASE}/api/alerts/preview/${userId}`, {
+    headers: await authHeaders(),
+  });
+  if (!res.ok) throw new Error(`Failed to preview alerts (${res.status})`);
   return res.json();
 }
 
