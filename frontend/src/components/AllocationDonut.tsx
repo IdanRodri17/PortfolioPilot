@@ -10,8 +10,9 @@
  *
  * Recharts is v3.8.1 — we deliberately avoid the on-arc `label` render prop
  * (its geometry changed from v2 and clips in a fixed-height box) in favour of
- * a color-matched legend we fully control. Palette stays within the shared
- * slate/emerald language (no rainbow); amber is reserved for the in-flight feed.
+ * a color-matched legend we fully control. Palette is the Editorial forest→sage
+ * green ramp (no rainbow). Each legend row also shows the holding's gain/loss vs
+ * cost when a buy price is set (V20).
  */
 
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
@@ -114,6 +115,17 @@ export function AllocationDonut({
             <span className="ml-auto font-mono text-xs text-faint">
               {displayMoney(slice.value_usd, base, ilsPerUsd)}
             </span>
+            {slice.gain_loss_pct != null && (
+              <span
+                className={`w-14 text-right font-mono text-xs ${
+                  slice.gain_loss_pct >= 0 ? "text-forest" : "text-terracotta"
+                }`}
+                title="Gain/loss vs your buy price"
+              >
+                {slice.gain_loss_pct >= 0 ? "+" : ""}
+                {slice.gain_loss_pct.toFixed(1)}%
+              </span>
+            )}
           </li>
         ))}
       </ul>

@@ -33,6 +33,7 @@ interface Row {
   id: string;
   symbol: string;
   quantity: string; // kept as string so partial input (empty, "1.") is valid mid-edit
+  buyPrice: string; // optional cost basis (native currency); "" = not tracked (V20)
 }
 
 type LoadState = "loading" | "ready" | "error";
@@ -47,9 +48,13 @@ type TickerStatus =
   | { state: "invalid" }
   | { state: "error" }; // couldn't verify (network) — non-blocking
 
-function rowsToAssets(rows: Row[]): { assets?: Record<string, number>; error?: string } {
-
+function rowsToPayload(rows: Row[]): {
+  assets?: Record<string, number>;
+  cost_basis?: Record<string, number>;
+  error?: string;
+} {
   const assets: Record<string, number> = {};
+  const cost_basis: Record<string, number> = {};
   for (const r of rows) {
     const symbol = r.symbol.trim().toUpperCase();
     if (!symbol) return { error: "Every asset needs a symbol." };
@@ -60,9 +65,18 @@ function rowsToAssets(rows: Row[]): { assets?: Record<string, number>; error?: s
       return { error: `Quantity for ${symbol} must be greater than 0.` };
     }
     assets[symbol] = qty;
+    // Buy price is optional; when present it must be a positive number (V20).
+    const bpRaw = r.buyPrice.trim().replace(",", ".");
+    if (bpRaw) {
+      const bp = Number(bpRaw);
+      if (!Number.isFinite(bp) || bp <= 0) {
+        return { error: `Buy price for ${symbol} must be greater than 0.` };
+      }
+      cost_basis[symbol] = bp;
+    }
   }
   if (Object.keys(assets).length === 0) return { error: "Add at least one asset." };
-  return { assets };
+  return { assets, cost_basis };
 }
 
 function TickerStatusLine({ status }: { status?: TickerStatus }) {
@@ -114,6 +128,10 @@ export default function PortfolioEditorPage() {
             id: crypto.randomUUID(),
             symbol,
             quantity: String(qty),
+            buyPrice:
+              data.cost_basis && data.cost_basis[symbol] != null
+                ? String(data.cost_basis[symbol])
+                : "",
           })),
         );
         setRiskProfile(data.risk_profile);
@@ -174,7 +192,11 @@ export default function PortfolioEditorPage() {
     setSave((s) => (s.status === "idle" ? s : { status: "idle" }));
   }
 
-  function updateRow(id: string, field: "symbol" | "quantity", value: string) {
+  function updateRow(
+    id: string,
+    field: "symbol" | "quantity" | "buyPrice",
+    value: string,
+  ) {
     setRows((prev) =>
       prev.map((r) => (r.id === id ? { ...r, [field]: value } : r)),
     );
@@ -182,7 +204,10 @@ export default function PortfolioEditorPage() {
   }
 
   function addRow() {
-    setRows((prev) => [...prev, { id: crypto.randomUUID(), symbol: "", quantity: "" }]);
+    setRows((prev) => [
+      ...prev,
+      { id: crypto.randomUUID(), symbol: "", quantity: "", buyPrice: "" },
+    ]);
     touched();
   }
 
@@ -192,7 +217,7 @@ export default function PortfolioEditorPage() {
   }
 
   async function handleSave() {
-    const { assets, error } = rowsToAssets(rows);
+    const { assets, cost_basis, error } = rowsToPayload(rows);
     if (error) {
       setSave({ status: "error", message: error });
       return;
@@ -202,6 +227,7 @@ export default function PortfolioEditorPage() {
       await upsertPortfolio({
         user_id: userId!,
         assets: assets!,
+        cost_basis,
         risk_profile: riskProfile,
       });
       setSave({ status: "saved" });
@@ -274,7 +300,8 @@ export default function PortfolioEditorPage() {
                 Assets
               </h2>
               <p className="mb-3 text-xs text-faint">
-                Quantities can be fractional — enter 0.5, 1.25, etc.
+                Quantities can be fractional. Buy price is optional — enter it in
+                the currency shown for each ticker to track your gain/loss.
               </p>
               <div className="space-y-3">
                 {rows.map((row) => {
@@ -283,27 +310,41 @@ export default function PortfolioEditorPage() {
                   const invalid = status?.state === "invalid";
                   return (
                     <div key={row.id}>
-                      <div className="flex items-center gap-2">
-                        <input
-                          value={row.symbol}
-                          onChange={(e) =>
-                            updateRow(row.id, "symbol", e.target.value.toUpperCase())
-                          }
-                          placeholder="AAPL"
-                          className={`w-28 min-h-[40px] rounded-[3px] border bg-card px-3 py-2 font-mono text-sm text-ink placeholder:text-faint focus:outline-none ${
-                            invalid
-                              ? "border-neg-line focus:border-terracotta"
-                              : "border-field focus:border-forest"
-                          }`}
-                        />
-                        <input
-                          value={row.quantity}
-                          onChange={(e) => updateRow(row.id, "quantity", e.target.value)}
-                          type="text"
-                          inputMode="decimal"
-                          placeholder="0.5"
-                          className="w-full min-w-0 min-h-[40px] rounded-[3px] border border-field bg-card px-3 py-2 font-mono text-sm text-ink placeholder:text-faint focus:border-forest focus:outline-none"
-                        />
+                      <div className="flex items-start gap-2">
+                        <div className="flex flex-1 flex-wrap gap-2 sm:flex-nowrap">
+                          <input
+                            value={row.symbol}
+                            onChange={(e) =>
+                              updateRow(row.id, "symbol", e.target.value.toUpperCase())
+                            }
+                            placeholder="AAPL"
+                            className={`min-h-[40px] w-full rounded-[3px] border bg-card px-3 py-2 font-mono text-sm text-ink placeholder:text-faint focus:outline-none sm:w-28 ${
+                              invalid
+                                ? "border-neg-line focus:border-terracotta"
+                                : "border-field focus:border-forest"
+                            }`}
+                          />
+                          <input
+                            value={row.quantity}
+                            onChange={(e) => updateRow(row.id, "quantity", e.target.value)}
+                            type="text"
+                            inputMode="decimal"
+                            placeholder="Qty (0.5)"
+                            className="min-h-[40px] min-w-0 flex-1 rounded-[3px] border border-field bg-card px-3 py-2 font-mono text-sm text-ink placeholder:text-faint focus:border-forest focus:outline-none"
+                          />
+                          <input
+                            value={row.buyPrice}
+                            onChange={(e) => updateRow(row.id, "buyPrice", e.target.value)}
+                            type="text"
+                            inputMode="decimal"
+                            placeholder={
+                              status?.state === "valid"
+                                ? `Buy price (${status.currency === "ILS" ? "₪" : "$"})`
+                                : "Buy price (opt)"
+                            }
+                            className="min-h-[40px] min-w-0 flex-1 rounded-[3px] border border-field bg-card px-3 py-2 font-mono text-sm text-ink placeholder:text-faint focus:border-forest focus:outline-none"
+                          />
+                        </div>
                         <button
                           onClick={() => removeRow(row.id)}
                           aria-label={`Remove ${row.symbol || "asset"}`}

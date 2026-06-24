@@ -109,6 +109,11 @@ class Portfolio(Base):
     assets = Column(JSONB, nullable=False)
     # Example: {"AAPL": 10.0, "TEVA.TA": 25.0, "BTC": 0.5}
 
+    # Optional per-symbol buy price (cost basis) for gain/loss tracking (V20),
+    # in the symbol's NATIVE currency (USD, or ILS for TASE). {symbol: buy_price}.
+    # Empty = no cost basis tracked; additive + backward-compatible.
+    cost_basis = Column(JSONB, nullable=False, default=dict, server_default="{}")
+
     updated_at = Column(
         DateTime(timezone=True),
         server_default=func.now(),

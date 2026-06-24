@@ -477,6 +477,7 @@ async def generate_report(
     initial_state = {
         "user_id": user_id,
         "portfolio": user.portfolio.assets,
+        "cost_basis": user.portfolio.cost_basis or {},
         "risk_profile": user.risk_profile,
     }
     # Generated here so it can be reused as the V6 checkpointer thread_id

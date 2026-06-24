@@ -35,6 +35,11 @@ class PortfolioRequest(BaseModel):
     assets: Dict[str, float] = Field(
         description="Asset map: symbol → quantity. e.g. {'AAPL': 10, 'BTC': 0.5}.",
     )
+    cost_basis: Dict[str, float] = Field(
+        default_factory=dict,
+        description="Optional per-symbol buy price (cost basis) in the symbol's "
+        "native currency (USD, or ILS for TASE), for gain/loss. e.g. {'AAPL': 150}.",
+    )
     risk_profile: RiskProfile = Field(
         description="User's risk tolerance — shapes the V3 risk_agent thresholds."
     )
@@ -49,6 +54,16 @@ class PortfolioRequest(BaseModel):
                 raise ValueError(f"Quantity for '{symbol}' must be > 0 (got {qty}).")
         return v
 
+    @field_validator("cost_basis")
+    @classmethod
+    def _validate_cost_basis(cls, v: Dict[str, float]) -> Dict[str, float]:
+        """Buy prices, when given, must be positive. cost_basis is optional and
+        per-symbol — a holding without a buy price simply isn't tracked for P/L."""
+        for symbol, price in v.items():
+            if price <= 0:
+                raise ValueError(f"Buy price for '{symbol}' must be > 0 (got {price}).")
+        return v
+
 
 class PortfolioResponse(BaseModel):
     """Outbound payload for both POST and GET /api/portfolio routes.
@@ -59,6 +74,7 @@ class PortfolioResponse(BaseModel):
 
     user_id: str
     assets: Dict[str, float]
+    cost_basis: Dict[str, float] = Field(default_factory=dict)
     risk_profile: RiskProfile
     updated_at: datetime = Field(
         description="When the portfolio row was last written (server-side timestamp)."

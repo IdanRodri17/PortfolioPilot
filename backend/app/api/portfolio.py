@@ -37,6 +37,7 @@ def _to_response(user: User, portfolio: Portfolio) -> PortfolioResponse:
     return PortfolioResponse(
         user_id=user.id,
         assets=portfolio.assets,
+        cost_basis=portfolio.cost_basis or {},
         risk_profile=user.risk_profile,
         updated_at=portfolio.updated_at,
     )
@@ -81,18 +82,23 @@ def upsert_portfolio(
     if user is None:
         # First-time write for this user — create both rows.
         user = User(id=payload.user_id, risk_profile=payload.risk_profile)
-        user.portfolio = Portfolio(user_id=user.id, assets=payload.assets)
+        user.portfolio = Portfolio(
+            user_id=user.id, assets=payload.assets, cost_basis=payload.cost_basis
+        )
         db.add(user)
     else:
         user.risk_profile = payload.risk_profile
         if user.portfolio is None:
             # Defensive: shouldn't occur via this API but possible if
             # rows were ever created manually.
-            user.portfolio = Portfolio(user_id=user.id, assets=payload.assets)
+            user.portfolio = Portfolio(
+                user_id=user.id, assets=payload.assets, cost_basis=payload.cost_basis
+            )
         else:
             # JSONB columns don't track in-place mutation — assign a
             # whole new dict so SQLAlchemy flags the column as dirty.
             user.portfolio.assets = payload.assets
+            user.portfolio.cost_basis = payload.cost_basis
 
     db.commit()
     db.refresh(user.portfolio)  # pulls back the server-side updated_at

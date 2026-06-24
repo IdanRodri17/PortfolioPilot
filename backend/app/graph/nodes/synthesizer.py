@@ -301,6 +301,8 @@ def _build_composition(risk_analysis: dict, market_data: dict) -> List[AssetAllo
     """
     composition_pct: Dict[str, float] = risk_analysis.get("composition_pct", {})
     total_value_usd: float = risk_analysis.get("total_value_usd", 0.0)
+    # V20: per-asset gain/loss (only present for holdings with a buy price).
+    positions: Dict[str, dict] = risk_analysis.get("positions", {}) or {}
     return [
         AssetAllocation(
             asset=symbol,
@@ -309,6 +311,9 @@ def _build_composition(risk_analysis: dict, market_data: dict) -> List[AssetAllo
             # Prices are normalized to USD upstream (TASE converted), so the
             # composition is single-currency and the percentages are correct.
             currency=market_data.get(symbol, {}).get("currency", "USD"),
+            cost_basis_usd=positions.get(symbol, {}).get("cost_basis_usd"),
+            gain_loss_usd=positions.get(symbol, {}).get("gain_loss_usd"),
+            gain_loss_pct=positions.get(symbol, {}).get("gain_loss_pct"),
         )
         for symbol, pct in sorted(
             composition_pct.items(), key=lambda kv: kv[1], reverse=True
@@ -397,4 +402,19 @@ def synthesizer(state: PortfolioState) -> dict:
         portfolio_composition=_build_composition(risk_analysis, market_data),
         sector_concentration=_build_sector_concentration(macro_analysis),
     )
+
+    # V20: attach the deterministic cost-basis P/L totals to the valuation (never
+    # LLM-emitted). None unless the user set buy prices for some holdings.
+    pnl_totals = risk_analysis.get("pnl_totals")
+    if pnl_totals:
+        report.portfolio_valuation.total_cost_basis_usd = pnl_totals[
+            "total_cost_basis_usd"
+        ]
+        report.portfolio_valuation.total_gain_loss_usd = pnl_totals[
+            "total_gain_loss_usd"
+        ]
+        report.portfolio_valuation.total_gain_loss_pct = pnl_totals[
+            "total_gain_loss_pct"
+        ]
+
     return {"final_report": report}

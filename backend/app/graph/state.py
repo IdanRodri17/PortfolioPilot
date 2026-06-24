@@ -55,6 +55,10 @@ class PortfolioState(TypedDict, total=False):
     # "conservative" | "balanced" | "aggressive" — populated by the
     # handler from User.risk_profile (DB). Read by risk_agent (V3 step 4).
 
+    cost_basis: Dict[str, float]
+    # Optional per-symbol buy price (native currency) for gain/loss (V20).
+    # e.g. {"AAPL": 150.0}. Read by risk_agent; absent/empty = no P/L computed.
+
     # ─── Loaded by memory_loader (V5) ───
     long_term_memory: List[dict]
     # Past insights retrieved from PostgresStore via semantic search,

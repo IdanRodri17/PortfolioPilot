@@ -77,6 +77,7 @@ async def deliver_for_user(user_id: str) -> dict:
             return {"skipped": "no enabled delivery preference", "channels": {}}
         ctx = {
             "portfolio": dict(user.portfolio.assets),
+            "cost_basis": dict(user.portfolio.cost_basis or {}),
             "risk_profile": user.risk_profile,
             "email": user.email,
             "chat_id": user.telegram_chat_id,
@@ -94,6 +95,7 @@ async def deliver_for_user(user_id: str) -> dict:
     initial_state = {
         "user_id": user_id,
         "portfolio": ctx["portfolio"],
+        "cost_basis": ctx["cost_basis"],
         "risk_profile": ctx["risk_profile"],
     }
     graph = graph_builder.graph  # dynamic read: the checkpointer-bound singleton

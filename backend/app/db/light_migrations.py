@@ -41,6 +41,9 @@ _STATEMENTS = (
     "alert_cooldown_hours INTEGER NOT NULL DEFAULT 12",
     "ALTER TABLE delivery_preferences ADD COLUMN IF NOT EXISTS "
     "alert_state JSONB NOT NULL DEFAULT '{}'::jsonb",
+    # ── V20: cost-basis (buy price per holding) on portfolios ──
+    "ALTER TABLE portfolios ADD COLUMN IF NOT EXISTS "
+    "cost_basis JSONB NOT NULL DEFAULT '{}'::jsonb",
 )
 
 

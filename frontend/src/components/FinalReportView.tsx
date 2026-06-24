@@ -311,6 +311,19 @@ export function FinalReportView({
               {changePositive ? "▲" : "▼"} {formatPercent(val.change_24h_percent)}{" "}
               <span className="font-normal text-faint">past 24h</span>
             </p>
+            {/* Cost-basis total return (V20) — only when buy prices are set */}
+            {val.total_gain_loss_usd != null && val.total_gain_loss_pct != null && (
+              <p
+                className={`mt-1 text-sm font-semibold ${val.total_gain_loss_usd >= 0 ? "text-forest" : "text-terracotta"}`}
+              >
+                {val.total_gain_loss_usd >= 0 ? "▲" : "▼"}{" "}
+                {formatPercent(val.total_gain_loss_pct)}{" "}
+                <span className="font-mono font-normal">
+                  ({displayMoney(val.total_gain_loss_usd, base, ilsPerUsd)})
+                </span>{" "}
+                <span className="font-normal text-faint">return on cost</span>
+              </p>
+            )}
           </div>
           <div className="min-w-[10rem]">
             <p className="text-xs font-semibold uppercase tracking-[0.12em] text-faint">

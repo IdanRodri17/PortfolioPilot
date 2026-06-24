@@ -18,6 +18,7 @@ Concurrency note:
     asyncio.to_thread + asyncio.gather to parallelize multi-asset fetches.
 """
 
+import threading
 import time
 from datetime import date, timedelta
 from functools import lru_cache
@@ -84,29 +85,35 @@ _FX_TTL_SECONDS = 3600.0
 # so a transient failure (e.g. a network hiccup at startup) can never poison the
 # value for the life of the process — the next call simply retries.
 _fx_cache: dict[str, float] = {}
+# Serializes the read-check-fetch-write cycle so concurrent callers (multiple
+# reports, the alert sweep — and now risk_agent's P/L) can't write a half-updated
+# cache or stampede the fetch (V20).
+_fx_lock = threading.Lock()
 
 
 def _ils_per_usd() -> float:
     """ILS per 1 USD (yfinance 'ILS=X'), for converting TASE values into the
     USD base so a mixed-currency portfolio aggregates correctly. Cached for an
     hour on success only; on failure it reuses the last good rate (even if stale)
-    or a sane default, without caching it so a recovered network is picked up."""
-    now = time.monotonic()
-    rate = _fx_cache.get("rate")
-    ts = _fx_cache.get("ts", 0.0)
-    if rate is not None and (now - ts) < _FX_TTL_SECONDS:
-        return rate
-    try:
-        hist = yf.Ticker("ILS=X").history(period="5d")
-        if not hist.empty:
-            fresh = float(hist["Close"].iloc[-1])
-            if fresh > 0:
-                _fx_cache["rate"] = fresh
-                _fx_cache["ts"] = now
-                return fresh
-    except Exception:
-        pass
-    return rate if rate is not None else _FX_FALLBACK
+    or a sane default, without caching it so a recovered network is picked up.
+    Thread-safe: the whole check-fetch-write cycle is guarded by _fx_lock."""
+    with _fx_lock:
+        now = time.monotonic()
+        rate = _fx_cache.get("rate")
+        ts = _fx_cache.get("ts", 0.0)
+        if rate is not None and (now - ts) < _FX_TTL_SECONDS:
+            return rate
+        try:
+            hist = yf.Ticker("ILS=X").history(period="5d")
+            if not hist.empty:
+                fresh = float(hist["Close"].iloc[-1])
+                if fresh > 0:
+                    _fx_cache["rate"] = fresh
+                    _fx_cache["ts"] = now
+                    return fresh
+        except Exception:
+            pass
+        return rate if rate is not None else _FX_FALLBACK
 
 
 def usd_ils_rate() -> float:

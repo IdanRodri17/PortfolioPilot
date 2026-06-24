@@ -69,6 +69,18 @@ class PortfolioValuation(BaseModel):
     change_24h_percent: float = Field(
         description="Weighted change in total portfolio value over the last 24 hours, as a percent."
     )
+    # Cost-basis P/L (V20) — deterministic, attached by the synthesizer from
+    # risk_agent. Optional/None for reports without buy prices (and pre-V20 ones).
+    total_cost_basis_usd: float | None = Field(
+        default=None,
+        description="Total cost basis (USD) across holdings that have a buy price.",
+    )
+    total_gain_loss_usd: float | None = Field(
+        default=None, description="Total unrealized gain/loss in USD (value − cost)."
+    )
+    total_gain_loss_pct: float | None = Field(
+        default=None, description="Total unrealized gain/loss as a percent of cost."
+    )
 
 
 class AssetAllocation(BaseModel):
@@ -89,6 +101,16 @@ class AssetAllocation(BaseModel):
     currency: str = Field(
         default="USD",
         description="Display currency for value_usd — 'USD' or 'ILS' (TASE). V16.",
+    )
+    # Cost-basis P/L (V20) — None unless a buy price is set for this holding.
+    cost_basis_usd: float | None = Field(
+        default=None, description="Total cost paid for this holding in USD (qty × buy price)."
+    )
+    gain_loss_usd: float | None = Field(
+        default=None, description="Unrealized gain/loss for this holding in USD."
+    )
+    gain_loss_pct: float | None = Field(
+        default=None, description="Unrealized gain/loss as a percent of the buy price."
     )
 
 

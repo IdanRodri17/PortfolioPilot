@@ -26,12 +26,14 @@ export type RiskProfile = "conservative" | "balanced" | "aggressive";
 export interface PortfolioRequest {
   user_id: string;
   assets: Record<string, number>; // symbol -> quantity
+  cost_basis?: Record<string, number>; // symbol -> buy price (native currency), optional (V20)
   risk_profile: RiskProfile;
 }
 
 export interface PortfolioResponse {
   user_id: string;
   assets: Record<string, number>;
+  cost_basis?: Record<string, number>; // symbol -> buy price (V20); may be absent on old rows
   risk_profile: RiskProfile;
   updated_at: string; // ISO-8601 timestamp from the server
 }
@@ -44,6 +46,10 @@ export type RecommendationAction = "reduce" | "increase" | "hold";
 export interface PortfolioValuation {
   total_usd: number;
   change_24h_percent: number;
+  // Cost-basis P/L (V20) — null/absent when no buy prices are set.
+  total_cost_basis_usd?: number | null;
+  total_gain_loss_usd?: number | null;
+  total_gain_loss_pct?: number | null;
 }
 
 export interface MarketInsight {
@@ -64,6 +70,10 @@ export interface AssetAllocation {
   pct: number; // share of total portfolio value, 0..100
   value_usd: number; // this asset's value in its own currency
   currency?: string; // "USD" or "ILS" (TASE); optional for pre-V16 reports
+  // Cost-basis P/L (V20) — null/absent unless a buy price is set for this holding.
+  cost_basis_usd?: number | null;
+  gain_loss_usd?: number | null;
+  gain_loss_pct?: number | null;
 }
 
 export interface SectorAllocation {

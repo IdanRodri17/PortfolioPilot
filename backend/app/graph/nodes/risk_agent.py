@@ -35,9 +35,71 @@ from typing import Dict
 
 from app.graph.risk_profiles import RISK_PROFILES
 from app.graph.state import PortfolioState
-from app.tools.stock_data import is_crypto
+from app.tools.stock_data import is_crypto, is_tase, usd_ils_rate
 
 logger = logging.getLogger(__name__)
+
+
+def _compute_pnl(
+    portfolio: Dict[str, float],
+    cost_basis: Dict[str, float],
+    market_data: Dict[str, dict],
+) -> tuple[Dict[str, dict], dict | None]:
+    """Per-asset and total gain/loss vs cost basis, in USD-canonical (V20).
+
+    Buy prices are stored in the symbol's NATIVE currency (ILS for TASE, USD
+    otherwise) — exactly what the editor shows and the user types. Current prices
+    from data_ingestion are already USD-normalized, so we convert each native buy
+    price to USD before comparing. Because both the buy and current price are
+    divided by the same ILS rate, the percentage is FX-independent (the asset's
+    own return); the absolute gain is expressed in current USD.
+
+    Only symbols with a quantity, a current price, AND a positive buy price are
+    included. Returns ({} , None) when nothing is trackable.
+    """
+    if not cost_basis:
+        return {}, None
+
+    positions: Dict[str, dict] = {}
+    rate: float | None = None
+    total_cost = 0.0
+    total_value = 0.0
+
+    for symbol, qty in portfolio.items():
+        buy_native = cost_basis.get(symbol)
+        md = market_data.get(symbol)
+        if not buy_native or buy_native <= 0 or md is None:
+            continue
+        current_usd = md["price"]
+        if not current_usd or current_usd <= 0:
+            continue  # corrupt/invalid price — skip rather than report nonsense
+        if is_tase(symbol):
+            if rate is None:
+                rate = usd_ils_rate()
+            buy_usd = buy_native / rate
+        else:
+            buy_usd = buy_native
+        if buy_usd <= 0:
+            continue
+        cost_usd = buy_usd * qty
+        value_usd = current_usd * qty
+        positions[symbol] = {
+            "cost_basis_usd": round(cost_usd, 2),
+            "gain_loss_usd": round(value_usd - cost_usd, 2),
+            "gain_loss_pct": round((current_usd - buy_usd) / buy_usd * 100, 2),
+        }
+        total_cost += cost_usd
+        total_value += value_usd
+
+    if not positions or total_cost <= 0:
+        return {}, None
+
+    totals = {
+        "total_cost_basis_usd": round(total_cost, 2),
+        "total_gain_loss_usd": round(total_value - total_cost, 2),
+        "total_gain_loss_pct": round((total_value - total_cost) / total_cost * 100, 2),
+    }
+    return positions, totals
 
 
 def _compute_composition(
@@ -154,6 +216,8 @@ def risk_agent(state: PortfolioState) -> dict:
                     "Risk analysis could not be performed — market data "
                     "was unavailable for every asset in the portfolio."
                 ],
+                "positions": {},
+                "pnl_totals": None,
             }
         }
 
@@ -164,6 +228,11 @@ def risk_agent(state: PortfolioState) -> dict:
         profile_name=profile_name,
     )
 
+    # V20: deterministic gain/loss vs cost basis (only for held buy prices).
+    positions, pnl_totals = _compute_pnl(
+        portfolio, state.get("cost_basis", {}) or {}, market_data
+    )
+
     return {
         "risk_analysis": {
             "profile": profile_name,
@@ -171,5 +240,7 @@ def risk_agent(state: PortfolioState) -> dict:
             "total_value_usd": round(total, 2),
             "composition_pct": {sym: round(pct, 2) for sym, pct in composition.items()},
             "violations": violations,
+            "positions": positions,
+            "pnl_totals": pnl_totals,
         }
     }
