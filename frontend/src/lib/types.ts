@@ -38,6 +38,14 @@ export interface PortfolioResponse {
   updated_at: string; // ISO-8601 timestamp from the server
 }
 
+// Trending / popular stocks for the discovery card (V22). Public market data.
+export interface TrendingStock {
+  symbol: string;
+  name: string;
+  price: number;
+  change_24h_percent: number;
+}
+
 // ─── Report domain (mirrors schemas/report.py) ───
 
 export type Sentiment = "Positive" | "Neutral" | "Negative";

@@ -20,6 +20,9 @@ Versioning:
         history is exposed; currently only the latest row is kept.
 """
 
+import threading
+import time
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
@@ -27,9 +30,36 @@ from app.api.deps import require_owner_or_demo, require_user
 from app.db.base import get_db
 from app.db.models import User, Portfolio
 from app.schemas.portfolio import PortfolioRequest, PortfolioResponse
-from app.tools.stock_data import StockDataError, lookup_symbol, usd_ils_rate
+from app.tools.stock_data import (
+    StockDataError,
+    fetch_trending_quotes,
+    lookup_symbol,
+    usd_ils_rate,
+)
 
 router = APIRouter()
+
+# ─── Trending / popular stocks (V22) ─────────────────────────────────────────
+# A curated set of widely-held / high-interest US names. Honest "popular stocks"
+# rather than a live social-trending feed (no extra API key needed); the endpoint
+# ranks them by absolute 24h move so the card surfaces the day's biggest movers.
+_TRENDING: list[tuple[str, str]] = [
+    ("NVDA", "NVIDIA"),
+    ("AAPL", "Apple"),
+    ("MSFT", "Microsoft"),
+    ("AMZN", "Amazon"),
+    ("GOOGL", "Alphabet"),
+    ("META", "Meta Platforms"),
+    ("TSLA", "Tesla"),
+    ("AMD", "AMD"),
+    ("NFLX", "Netflix"),
+    ("AVGO", "Broadcom"),
+    ("PLTR", "Palantir"),
+    ("COIN", "Coinbase"),
+]
+_TRENDING_TTL_SECONDS = 900.0  # 15 min — quotes are cached so we fetch rarely
+_trending_cache: dict = {"ts": 0.0, "rows": []}
+_trending_lock = threading.Lock()
 
 
 def _to_response(user: User, portfolio: Portfolio) -> PortfolioResponse:
@@ -175,3 +205,39 @@ def usd_ils() -> dict:
     """Public: the rate the frontend uses to display USD-canonical report values
     in shekels when the user picks an ILS base currency (V17). No user data."""
     return {"ils_per_usd": usd_ils_rate()}
+
+
+@router.get(
+    "/api/trending",
+    summary="Popular stocks with live price + 24h change (public, cached ~15m)",
+)
+def trending(limit: int = 10) -> dict:
+    """Curated popular US tickers with live price + 24h move, ranked by the size
+    of the day's move (V22). Public market data — no auth. Cached process-wide so
+    repeated dashboard loads don't refetch; the lock serializes the batch fetch on
+    a cache miss so concurrent requests don't stampede yfinance."""
+    limit = max(1, min(limit, len(_TRENDING)))
+    with _trending_lock:
+        now = time.monotonic()
+        rows = _trending_cache["rows"]
+        if not rows or (now - _trending_cache["ts"]) > _TRENDING_TTL_SECONDS:
+            names = dict(_TRENDING)
+            quotes = fetch_trending_quotes([s for s, _ in _TRENDING])
+            rows = [
+                {
+                    "symbol": s,
+                    "name": names[s],
+                    "price": q["price"],
+                    "change_24h_percent": q["change_24h_percent"],
+                }
+                for s, q in ((s, quotes.get(s)) for s in names)
+                if q
+            ]
+            rows.sort(key=lambda r: abs(r["change_24h_percent"]), reverse=True)
+            # Only cache a non-empty result, so a transient yfinance failure
+            # doesn't pin an empty list for the whole TTL.
+            if rows:
+                _trending_cache["rows"] = rows
+                _trending_cache["ts"] = now
+        rows = _trending_cache["rows"] or rows
+    return {"stocks": rows[:limit]}

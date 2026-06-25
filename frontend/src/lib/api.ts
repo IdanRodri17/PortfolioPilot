@@ -23,6 +23,7 @@ import type {
   DeliveryPreference,
   DeliveryPreferenceInput,
   AlertPreview,
+  TrendingStock,
 } from "@/lib/types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL;
@@ -117,6 +118,14 @@ export async function getReport(reportId: string): Promise<ReportDetail> {
   const res = await fetch(`${API_BASE}/api/reports/${reportId}`);
   if (!res.ok) throw new Error(`getReport failed: HTTP ${res.status}`);
   return res.json();
+}
+
+// Public popular/trending stocks for the dashboard discovery card (V22). No auth.
+export async function getTrending(limit = 10): Promise<TrendingStock[]> {
+  const res = await fetch(`${API_BASE}/api/trending?limit=${limit}`);
+  if (!res.ok) throw new Error(`getTrending failed: HTTP ${res.status}`);
+  const data = await res.json();
+  return (data.stocks ?? []) as TrendingStock[];
 }
 
 export async function getReportSeries(

@@ -17,6 +17,7 @@ import { useReportStream } from "@/lib/useReportStream";
 import { LiveStatusFeed } from "@/components/LiveStatusFeed";
 import { FinalReportView } from "@/components/FinalReportView";
 import { PortfolioOverview } from "@/components/PortfolioOverview";
+import { TrendingStocks } from "@/components/TrendingStocks";
 import { MemoryReviewModal } from "@/components/MemoryReviewModal";
 import { signOut, useSession } from "next-auth/react";
 
@@ -131,6 +132,9 @@ export default function DashboardPage() {
               narrativeStreaming={narrativeStreaming}
             />
           )}
+
+          {/* Discovery: popular stocks you don't hold (V22) */}
+          <TrendingStocks userId={userId} />
         </div>
       </div>
       {(phase === "awaiting_review" || phase === "saving") && review && (

@@ -215,6 +215,52 @@ def fetch_stock_data(symbol: str) -> dict:
     }
 
 
+def fetch_trending_quotes(symbols: list[str]) -> dict[str, dict]:
+    """Batch price + 24h change for a list of US symbols in ONE yfinance call (V22).
+
+    Used by the trending card, which needs ~10-12 quotes at once — per-symbol
+    fetches would be slow and rate-limit-prone, so we use yf.download (a single
+    request). NaN-safe (drops incomplete bars); returns {symbol: {price,
+    change_24h_percent}} for whatever resolves. Best-effort: any failure yields a
+    partial/empty dict rather than raising (the caller degrades gracefully).
+    """
+    out: dict[str, dict] = {}
+    if not symbols:
+        return out
+    try:
+        df = yf.download(
+            symbols, period="5d", progress=False, auto_adjust=True, threads=True
+        )
+    except Exception:  # noqa: BLE001 — trending is non-critical; degrade
+        logger.warning("fetch_trending_quotes: batch download failed")
+        return out
+    if df is None or getattr(df, "empty", True):
+        return out
+    try:
+        close = df["Close"]
+    except Exception:  # noqa: BLE001
+        return out
+
+    multi = hasattr(close, "columns")  # DataFrame (many tickers) vs Series (one)
+    for symbol in symbols:
+        try:
+            series = close[symbol] if multi else close
+            series = series.dropna()
+            if len(series) < 2:
+                continue
+            latest = float(series.iloc[-1])
+            previous = float(series.iloc[-2])
+            if not (latest > 0 and previous > 0):
+                continue
+            out[symbol] = {
+                "price": round(latest, 2),
+                "change_24h_percent": round((latest - previous) / previous * 100, 2),
+            }
+        except Exception:  # noqa: BLE001 — skip one bad ticker, keep the rest
+            continue
+    return out
+
+
 @lru_cache(maxsize=512)
 def _lookup_symbol_cached(symbol: str) -> dict | None:
     """Cached inner lookup; `symbol` must already be normalized.

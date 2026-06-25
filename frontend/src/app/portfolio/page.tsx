@@ -123,17 +123,30 @@ export default function PortfolioEditorPage() {
     getPortfolio(userId)
       .then((data) => {
         if (!active) return;
-        setRows(
-          Object.entries(data.assets).map(([symbol, qty]) => ({
+        const loaded: Row[] = Object.entries(data.assets).map(([symbol, qty]) => ({
+          id: crypto.randomUUID(),
+          symbol,
+          quantity: String(qty),
+          buyPrice:
+            data.cost_basis && data.cost_basis[symbol] != null
+              ? String(data.cost_basis[symbol])
+              : "",
+        }));
+        // V22: the trending card's "+ Add" lands here as ?add=SYMBOL — prepend an
+        // empty row for it (unless already held) so the user just fills quantity.
+        const addSymbol = new URLSearchParams(window.location.search)
+          .get("add")
+          ?.trim()
+          .toUpperCase();
+        if (addSymbol && !loaded.some((r) => r.symbol.toUpperCase() === addSymbol)) {
+          loaded.unshift({
             id: crypto.randomUUID(),
-            symbol,
-            quantity: String(qty),
-            buyPrice:
-              data.cost_basis && data.cost_basis[symbol] != null
-                ? String(data.cost_basis[symbol])
-                : "",
-          })),
-        );
+            symbol: addSymbol,
+            quantity: "",
+            buyPrice: "",
+          });
+        }
+        setRows(loaded);
         setRiskProfile(data.risk_profile);
         setLoad("ready");
       })

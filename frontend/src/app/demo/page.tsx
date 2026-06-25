@@ -18,6 +18,7 @@ import { useReportStream } from "@/lib/useReportStream";
 import { LiveStatusFeed } from "@/components/LiveStatusFeed";
 import { FinalReportView } from "@/components/FinalReportView";
 import { PortfolioOverview } from "@/components/PortfolioOverview";
+import { TrendingStocks } from "@/components/TrendingStocks";
 
 const DEMO_USER = "idan_demo";
 
@@ -98,6 +99,9 @@ export default function DemoPage() {
               narrativeStreaming={narrativeStreaming}
             />
           )}
+
+          {/* Discovery: popular stocks (V22) */}
+          <TrendingStocks userId={DEMO_USER} />
         </div>
       </div>
     </main>
