@@ -16,3 +16,6 @@ httpx
 apscheduler<4
 bcrypt
 pyjwt
+
+# ─── dev / test ───
+pytest

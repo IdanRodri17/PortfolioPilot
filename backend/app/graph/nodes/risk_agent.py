@@ -219,6 +219,7 @@ def risk_agent(state: PortfolioState) -> dict:
                     "Risk analysis could not be performed — market data "
                     "was unavailable for every asset in the portfolio."
                 ],
+                "total_change_24h_percent": 0.0,
                 "positions": {},
                 "pnl_totals": None,
             }
@@ -236,11 +237,28 @@ def risk_agent(state: PortfolioState) -> dict:
         portfolio, state.get("cost_basis", {}) or {}, market_data
     )
 
+    # V21: value-weighted 24h change, computed deterministically here so the
+    # report's HEADLINE valuation never relies on LLM arithmetic. Only priced
+    # assets contribute; matches the total used for composition.
+    weighted_change = 0.0
+    if total > 0:
+        weighted_change = (
+            sum(
+                portfolio[sym]
+                * market_data[sym]["price"]
+                * (market_data[sym].get("change_24h_percent") or 0.0)
+                for sym in portfolio
+                if sym in market_data
+            )
+            / total
+        )
+
     return {
         "risk_analysis": {
             "profile": profile_name,
             "profile_description": profile["description"],
             "total_value_usd": round(total, 2),
+            "total_change_24h_percent": round(weighted_change, 2),
             "composition_pct": {sym: round(pct, 2) for sym, pct in composition.items()},
             "violations": violations,
             "positions": positions,

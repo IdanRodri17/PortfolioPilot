@@ -403,6 +403,16 @@ def synthesizer(state: PortfolioState) -> dict:
         sector_concentration=_build_sector_concentration(macro_analysis),
     )
 
+    # V21: the HEADLINE valuation is deterministic too — overwrite the LLM's
+    # arithmetic with risk_agent's computed total + value-weighted 24h change, so
+    # the hero number always reconciles with the donut total and never drifts.
+    report.portfolio_valuation.total_usd = risk_analysis.get(
+        "total_value_usd", report.portfolio_valuation.total_usd
+    )
+    report.portfolio_valuation.change_24h_percent = risk_analysis.get(
+        "total_change_24h_percent", report.portfolio_valuation.change_24h_percent
+    )
+
     # V20: attach the deterministic cost-basis P/L totals to the valuation (never
     # LLM-emitted). None unless the user set buy prices for some holdings.
     pnl_totals = risk_analysis.get("pnl_totals")
