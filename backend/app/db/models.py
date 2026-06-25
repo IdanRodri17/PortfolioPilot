@@ -236,6 +236,11 @@ class DeliveryPreference(Base):
 
     enabled = Column(Boolean, nullable=False, default=True)  # master on/off
 
+    # V23: "full" runs the graph and sends the full AI report; "changes_only"
+    # sends a lightweight what-changed-since-last-report digest (deterministic,
+    # no graph run). Default "full" keeps existing users on the old behavior.
+    digest_mode = Column(String, nullable=False, default="full", server_default="full")
+
     # Drives the due-check + dedupe (stamped after a successful send).
     last_sent_at = Column(DateTime(timezone=True), nullable=True)
 

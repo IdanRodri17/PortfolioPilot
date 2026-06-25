@@ -44,6 +44,9 @@ _STATEMENTS = (
     # ── V20: cost-basis (buy price per holding) on portfolios ──
     "ALTER TABLE portfolios ADD COLUMN IF NOT EXISTS "
     "cost_basis JSONB NOT NULL DEFAULT '{}'::jsonb",
+    # ── V23: digest mode (full report vs what-changed) on delivery_preferences ──
+    "ALTER TABLE delivery_preferences ADD COLUMN IF NOT EXISTS "
+    "digest_mode VARCHAR NOT NULL DEFAULT 'full'",
 )
 
 

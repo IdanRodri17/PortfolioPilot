@@ -230,6 +230,30 @@ export interface MemorySavedData {
 }
 
 export type Cadence = "daily" | "every_n_days" | "weekly";
+// V23: what a scheduled send contains.
+export type DigestMode = "full" | "changes_only";
+
+// V23: the lightweight what-changed digest (deltas vs the last report).
+export interface DigestMover {
+  symbol: string;
+  change_24h_percent: number;
+  value_usd: number;
+}
+export interface ChangeDigest {
+  prev_date: string | null;
+  total_usd: number;
+  value_delta_usd: number | null;
+  value_delta_pct: number | null;
+  movers: DigestMover[];
+  top_now: { symbol: string; pct: number } | null;
+  top_prev: { symbol: string; pct: number } | null;
+  notable: boolean;
+}
+export interface DigestPreview {
+  available: boolean;
+  reason?: string;
+  digest?: ChangeDigest;
+}
 
 // The stored preference, as returned inside the GET view and by PUT.
 export interface DeliveryPreference {
@@ -242,6 +266,7 @@ export interface DeliveryPreference {
   send_time_local: string;      // "HH:MM:SS" wall-clock in `timezone`
   timezone: string;             // IANA name, e.g. "Asia/Jerusalem"
   enabled: boolean;
+  digest_mode: DigestMode;      // V23: full report vs what-changed digest
   // Threshold alerts (V18). A null threshold = that rule is off.
   alerts_enabled: boolean;
   alert_price_move_pct: number | null;
@@ -273,6 +298,7 @@ export interface DeliveryPreferenceInput {
   send_time_local: string; // "HH:MM" from an <input type="time"> is fine
   timezone: string;
   enabled: boolean;
+  digest_mode: DigestMode; // V23
   // Threshold alerts (V18). null = the rule is off.
   alerts_enabled: boolean;
   alert_price_move_pct?: number | null;

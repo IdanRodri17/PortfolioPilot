@@ -24,6 +24,7 @@ import type {
   DeliveryPreferenceInput,
   AlertPreview,
   TrendingStock,
+  DigestPreview,
 } from "@/lib/types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL;
@@ -227,6 +228,16 @@ export async function previewAlerts(userId: string): Promise<AlertPreview> {
     headers: await authHeaders(),
   });
   if (!res.ok) throw new Error(`Failed to preview alerts (${res.status})`);
+  return res.json();
+}
+
+// Dry-run the "what changed" digest (V23): GET /api/digest/preview/{user_id}.
+// Returns what the next changes-only send would contain (needs a prior report).
+export async function previewDigest(userId: string): Promise<DigestPreview> {
+  const res = await fetch(`${API_BASE}/api/digest/preview/${userId}`, {
+    headers: await authHeaders(),
+  });
+  if (!res.ok) throw new Error(`Failed to preview digest (${res.status})`);
   return res.json();
 }
 

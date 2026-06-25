@@ -29,11 +29,14 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.db.base import get_db
-from app.db.models import User, DeliveryPreference
+import asyncio
+
+from app.db.base import get_db, SessionLocal
+from app.db.models import User, DeliveryPreference, Report
 from app.schemas.delivery import DeliveryPreferenceRequest, DeliveryPreferenceResponse
 from app.api.deps import require_owner
-from app.delivery.alerts import evaluate_for_user
+from app.delivery.alerts import evaluate_for_user, _fetch_market
+from app.delivery.change_digest import compute_change_digest
 
 logger = logging.getLogger(__name__)
 
@@ -139,6 +142,7 @@ def upsert_delivery_preferences(
     pref.send_time_local = payload.send_time_local
     pref.timezone = payload.timezone
     pref.enabled = payload.enabled
+    pref.digest_mode = payload.digest_mode  # V23
     # Threshold alerts (V18). alert_state is owned by the evaluator and is never
     # touched here — a prefs save changes the rules, not the cooldown heartbeat.
     pref.alerts_enabled = payload.alerts_enabled
@@ -167,3 +171,42 @@ async def preview_alerts(
     the current truth — it never sends and never mutates alert_state.
     """
     return await evaluate_for_user(user_id, dry_run=True)
+
+
+@router.get(
+    "/api/digest/preview/{user_id}",
+    summary="Preview the 'what changed' digest against the last report (no send)",
+)
+async def preview_digest(
+    user_id: str,
+    _owner: str = Depends(require_owner),
+) -> dict:
+    """Dry-run the V23 change digest so the settings UI can show what the next
+    'changes_only' send would contain. Needs a prior report as the baseline."""
+    db = SessionLocal()
+    try:
+        user = db.get(User, user_id)
+        if user is None or user.portfolio is None:
+            return {"available": False, "reason": "No portfolio on file."}
+        holdings = dict(user.portfolio.assets)
+        latest = (
+            db.query(Report)
+            .filter(Report.user_id == user_id)
+            .order_by(Report.generated_at.desc())
+            .first()
+        )
+        prev = dict(latest.raw_result) if latest else None
+        prev_at = latest.generated_at if latest else None
+    finally:
+        db.close()
+
+    if not prev:
+        return {
+            "available": False,
+            "reason": "No prior report yet — generate one to set the baseline.",
+        }
+    market = await asyncio.to_thread(_fetch_market, holdings)
+    digest = compute_change_digest(
+        holdings=holdings, prev_report=prev, prev_generated_at=prev_at, market=market
+    )
+    return {"available": True, "digest": digest}

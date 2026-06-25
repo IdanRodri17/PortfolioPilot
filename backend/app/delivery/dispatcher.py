@@ -40,14 +40,22 @@ import app.graph.builder as graph_builder
 from app.api.generate import _persist_report
 from app.core.config import get_settings
 from app.db.base import SessionLocal
-from app.db.models import User, DeliveryPreference
-from app.delivery.renderers import render_email_html, render_telegram_brief
+from app.db.models import User, DeliveryPreference, Report
+from app.delivery.alerts import _fetch_market
+from app.delivery.change_digest import compute_change_digest
+from app.delivery.renderers import (
+    render_change_digest_email,
+    render_change_digest_telegram,
+    render_email_html,
+    render_telegram_brief,
+)
 from app.tools.email_sender import send_email
 from app.tools.telegram_sender import send_telegram_message
 
 logger = logging.getLogger(__name__)
 
 _EMAIL_SUBJECT = "Your PortfolioPilot report"
+_DIGEST_SUBJECT = "Your PortfolioPilot update — what changed"
 
 
 class DeliveryError(Exception):
@@ -83,9 +91,26 @@ async def deliver_for_user(user_id: str) -> dict:
             "chat_id": user.telegram_chat_id,
             "deliver_email": bool(pref.deliver_email),
             "deliver_telegram": bool(pref.deliver_telegram),
+            "digest_mode": pref.digest_mode or "full",
         }
+        # V23: the most recent archived report is the baseline a "changes_only"
+        # digest diffs against (read here, inside the session).
+        latest = (
+            db.query(Report)
+            .filter(Report.user_id == user_id)
+            .order_by(Report.generated_at.desc())
+            .first()
+        )
+        ctx["prev_report"] = dict(latest.raw_result) if latest else None
+        ctx["prev_generated_at"] = latest.generated_at if latest else None
     finally:
         db.close()
+
+    # V23: a "changes_only" preference sends a cheap, deterministic what-changed
+    # digest (no graph, no LLM). The first-ever delivery has no prior report to
+    # diff, so it falls through to a full report to establish the baseline.
+    if ctx["digest_mode"] == "changes_only" and ctx["prev_report"]:
+        return await _deliver_change_digest(user_id, ctx)
 
     # 2. Run the graph once. It pauses at human_review (if any memories were
     #    proposed); we resume with NO approvals = read-only memory for an
@@ -174,6 +199,58 @@ async def deliver_for_user(user_id: str) -> dict:
             db.close()
 
     return {"report_id": report_id, "channels": channels}
+
+
+async def _deliver_change_digest(user_id: str, ctx: dict) -> dict:
+    """Send the V23 'what changed since last report' digest — deterministic deltas
+    only, no graph and no LLM. Best-effort per channel, like the full delivery."""
+    market = await asyncio.to_thread(_fetch_market, ctx["portfolio"])
+    digest = compute_change_digest(
+        holdings=ctx["portfolio"],
+        prev_report=ctx["prev_report"],
+        prev_generated_at=ctx["prev_generated_at"],
+        market=market,
+    )
+    base_url = get_settings().public_app_base_url
+    channels: dict = {}
+
+    if ctx["deliver_telegram"] and ctx["chat_id"]:
+        try:
+            await asyncio.to_thread(
+                send_telegram_message,
+                ctx["chat_id"],
+                render_change_digest_telegram(digest, base_url),
+            )
+            channels["telegram"] = "sent"
+        except Exception as exc:  # noqa: BLE001 — best-effort per channel
+            logger.warning("change digest: telegram failed for %s — %s", user_id, exc)
+            channels["telegram"] = f"failed: {exc}"
+
+    if ctx["deliver_email"] and ctx["email"]:
+        try:
+            await asyncio.to_thread(
+                send_email,
+                ctx["email"],
+                _DIGEST_SUBJECT,
+                render_change_digest_email(digest, base_url),
+            )
+            channels["email"] = "sent"
+        except Exception as exc:  # noqa: BLE001 — best-effort per channel
+            logger.warning("change digest: email failed for %s — %s", user_id, exc)
+            channels["email"] = f"failed: {exc}"
+
+    # Stamp last_sent_at only if something went out (mirrors the full path).
+    if any(v == "sent" for v in channels.values()):
+        db = SessionLocal()
+        try:
+            user = db.get(User, user_id)
+            if user and user.delivery_preference:
+                user.delivery_preference.last_sent_at = datetime.now(timezone.utc)
+                db.commit()
+        finally:
+            db.close()
+
+    return {"mode": "changes_only", "digest": digest, "channels": channels}
 
 
 def _is_due(pref: DeliveryPreference, now: datetime) -> bool:

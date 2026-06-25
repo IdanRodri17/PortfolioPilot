@@ -196,6 +196,138 @@ def render_alert_email(messages: list[str], base_url: str) -> str:
 </html>"""
 
 
+# ─── What-changed digest (V23) ────────────────────────────────────────
+
+
+def render_change_digest_telegram(digest: dict, base_url: str) -> str:
+    """Compact 'what changed since your last report' brief for Telegram (HTML)."""
+    lines = ["<b>PortfolioPilot</b> — what changed", ""]
+    if digest.get("value_delta_pct") is not None:
+        up = (digest.get("value_delta_usd") or 0) >= 0
+        since = f" since {digest['prev_date']}" if digest.get("prev_date") else ""
+        lines.append(
+            f"Portfolio{_esc(since)}: {'▲' if up else '▼'} "
+            f"{_esc(_pct(digest['value_delta_pct']))} "
+            f"({_esc(_usd(digest['value_delta_usd']))}) → "
+            f"<b>{_esc(_usd(digest['total_usd']))}</b>"
+        )
+    else:
+        lines.append(f"Portfolio value: <b>{_esc(_usd(digest['total_usd']))}</b>")
+
+    movers = digest.get("movers") or []
+    if movers:
+        text = ", ".join(
+            f"{_esc(m['symbol'])} {_esc(_pct(m['change_24h_percent']))}"
+            for m in movers[:3]
+        )
+        lines.append(f"Movers (24h): {text}")
+
+    tn = digest.get("top_now")
+    if tn:
+        tp = digest.get("top_prev")
+        if tp and tp.get("symbol") == tn["symbol"]:
+            lines.append(
+                f"Top holding: {_esc(tn['symbol'])} {tn['pct']}% "
+                f"<i>(was {tp['pct']}%)</i>"
+            )
+        else:
+            lines.append(f"Top holding: {_esc(tn['symbol'])} {tn['pct']}%")
+
+    if not digest.get("notable"):
+        lines += ["", "<i>A quiet day — nothing major moved.</i>"]
+    lines += ["", f'<a href="{_esc(base_url)}/">Open the full report →</a>']
+    return "\n".join(lines)
+
+
+def render_change_digest_email(digest: dict, base_url: str) -> str:
+    """Compact 'what changed' HTML email — same light shell as the report email."""
+    up = (digest.get("value_delta_usd") or 0) >= 0
+    if digest.get("value_delta_pct") is not None:
+        delta_color = _EMERALD if up else _ROSE
+        delta_html = (
+            f'<p style="margin:6px 0 0;font-size:15px;font-weight:600;color:{delta_color};">'
+            f'{"▲" if up else "▼"} {_esc(_pct(digest["value_delta_pct"]))} '
+            f'<span style="color:{_FAINT};font-weight:400;">'
+            f'({_esc(_usd(digest["value_delta_usd"]))} since {_esc(digest.get("prev_date") or "last report")})</span></p>'
+        )
+    else:
+        delta_html = ""
+
+    mover_rows = "".join(
+        f'<tr><td style="padding:6px 0;font-family:{_MONO};font-size:13px;color:{_INK};">{_esc(m["symbol"])}</td>'
+        f'<td align="right" style="padding:6px 0;font-family:{_MONO};font-size:13px;'
+        f'color:{_EMERALD if m["change_24h_percent"] >= 0 else _ROSE};">'
+        f'{_esc(_pct(m["change_24h_percent"]))}</td></tr>'
+        for m in (digest.get("movers") or [])[:5]
+    )
+    movers_html = (
+        f'{_section_heading("Biggest movers (24h)")}'
+        f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0">{mover_rows}</table>'
+        if mover_rows
+        else ""
+    )
+
+    tn = digest.get("top_now")
+    top_html = ""
+    if tn:
+        tp = digest.get("top_prev")
+        was = (
+            f" (was {tp['pct']}%)" if tp and tp.get("symbol") == tn["symbol"] else ""
+        )
+        top_html = (
+            f'<p style="margin:14px 0 0;font-size:13px;color:{_MUTED};">'
+            f'Top holding: <span style="font-family:{_MONO};color:{_INK};">{_esc(tn["symbol"])}</span> '
+            f'{tn["pct"]}%{_esc(was)}.</p>'
+        )
+
+    quiet_html = (
+        f'<p style="margin:14px 0 0;font-size:13px;color:{_FAINT};font-style:italic;">'
+        f'A quiet day — nothing major moved.</p>'
+        if not digest.get("notable")
+        else ""
+    )
+
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light">
+<title>PortfolioPilot — what changed</title>
+</head>
+<body style="margin:0;padding:0;background:{_PAGE_BG};">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:{_PAGE_BG};padding:28px 12px;">
+  <tr><td align="center">
+    <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="width:600px;max-width:100%;background:{_CARD_BG};border:1px solid {_BORDER};border-radius:16px;overflow:hidden;font-family:{_FONT};">
+      <tr><td style="padding:24px 28px;border-bottom:1px solid {_BORDER};">
+        <span style="font-size:17px;font-weight:700;letter-spacing:-.01em;color:{_INK};">Portfolio<span style="color:{_EMERALD};">Pilot</span></span>
+        <span style="float:right;font-size:12px;color:{_FAINT};">what changed</span>
+      </td></tr>
+      <tr><td style="padding:24px 28px 8px;">
+        <p style="margin:0;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:{_FAINT};">Portfolio value</p>
+        <p style="margin:8px 0 0;font-size:30px;font-weight:700;letter-spacing:-.02em;color:{_INK};">{_esc(_usd(digest["total_usd"]))}</p>
+        {delta_html}
+        {top_html}
+        {quiet_html}
+      </td></tr>
+      <tr><td style="padding:12px 28px 8px;">{movers_html}</td></tr>
+      <tr><td style="padding:8px 28px 28px;">
+        <table role="presentation" cellpadding="0" cellspacing="0"><tr>
+          <td style="background:{_EMERALD};border-radius:10px;">
+            <a href="{_esc(base_url)}/" style="display:inline-block;padding:12px 22px;font-family:{_FONT};font-size:14px;font-weight:600;color:#ffffff;text-decoration:none;">Open the full report →</a>
+          </td>
+        </tr></table>
+      </td></tr>
+      <tr><td style="padding:18px 28px;border-top:1px solid {_BORDER};background:#fafbfc;">
+        <p style="margin:0;font-size:11px;color:{_FAINT};">A quick deltas-only update. <a href="{_esc(base_url)}/settings" style="color:{_MUTED};">Manage delivery</a> · not financial advice.</p>
+      </td></tr>
+    </table>
+  </td></tr>
+</table>
+</body>
+</html>"""
+
+
 # ─── Email HTML (full report) ─────────────────────────────────────────
 
 

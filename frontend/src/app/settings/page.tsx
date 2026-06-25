@@ -20,6 +20,7 @@ import {
   putDeliveryPreferences,
   connectTelegram,
   previewAlerts,
+  previewDigest,
   authHeaders,
 } from "@/lib/api";
 import type {
@@ -27,6 +28,7 @@ import type {
   DeliveryPreferencesView,
   DeliveryPreferenceInput,
   AlertPreview,
+  DigestPreview,
   Cadence,
 } from "@/lib/types";
 
@@ -64,6 +66,7 @@ function defaultForm(): DeliveryPreferenceInput {
     send_time_local: "08:00",
     timezone: "Asia/Jerusalem",
     enabled: true,
+    digest_mode: "full",
     alerts_enabled: false,
     alert_price_move_pct: null,
     alert_portfolio_move_pct: null,
@@ -83,6 +86,7 @@ function preferenceToForm(p: DeliveryPreference): DeliveryPreferenceInput {
     send_time_local: p.send_time_local.slice(0, 5),
     timezone: p.timezone,
     enabled: p.enabled,
+    digest_mode: p.digest_mode,
     alerts_enabled: p.alerts_enabled,
     alert_price_move_pct: p.alert_price_move_pct,
     alert_portfolio_move_pct: p.alert_portfolio_move_pct,
@@ -114,6 +118,8 @@ export default function SettingsPage() {
   const [runningNow, setRunningNow] = useState(false);
   const [previewing, setPreviewing] = useState(false);
   const [preview, setPreview] = useState<AlertPreview | null>(null);
+  const [previewingDigest, setPreviewingDigest] = useState(false);
+  const [digestPreview, setDigestPreview] = useState<DigestPreview | null>(null);
   const [saveMsg, setSaveMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [connectError, setConnectError] = useState<string | null>(null);
   const [runNowMsg, setRunNowMsg] = useState<string | null>(null);
@@ -155,6 +161,18 @@ export default function SettingsPage() {
       setPreview({ alerts: [], skipped: errMsg(e) });
     } finally {
       setPreviewing(false);
+    }
+  }
+
+  async function handlePreviewDigest() {
+    setPreviewingDigest(true);
+    setDigestPreview(null);
+    try {
+      setDigestPreview(await previewDigest(userId!));
+    } catch (e) {
+      setDigestPreview({ available: false, reason: errMsg(e) });
+    } finally {
+      setPreviewingDigest(false);
     }
   }
 
@@ -464,6 +482,106 @@ export default function SettingsPage() {
                   </select>
                 </div>
               </div>
+            </section>
+          )}
+
+          {/* ── 3b. Delivery content (V23) ────────────────────────────── */}
+          {form.enabled && (
+            <section className="rounded-xl border border-line bg-card p-5">
+              <h2 className="mb-1 text-xs font-medium uppercase tracking-widest text-faint">
+                What to send
+              </h2>
+              <p className="mb-4 text-xs text-faint">
+                Choose what each scheduled message contains.
+              </p>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {(
+                  [
+                    {
+                      v: "full",
+                      t: "Full report",
+                      d: "The complete AI analysis every time.",
+                    },
+                    {
+                      v: "changes_only",
+                      t: "What's changed",
+                      d: "A lightweight digest of what moved since your last report.",
+                    },
+                  ] as const
+                ).map((opt) => (
+                  <button
+                    key={opt.v}
+                    onClick={() => {
+                      patch("digest_mode", opt.v);
+                      setDigestPreview(null);
+                    }}
+                    className={`rounded-[4px] border p-3 text-left transition-colors ${
+                      form.digest_mode === opt.v
+                        ? "border-forest bg-wash-pos"
+                        : "border-line bg-paper hover:bg-inset"
+                    }`}
+                  >
+                    <p className="text-sm font-medium text-ink">{opt.t}</p>
+                    <p className="mt-0.5 text-xs text-muted">{opt.d}</p>
+                  </button>
+                ))}
+              </div>
+
+              {form.digest_mode === "changes_only" && (
+                <div className="mt-4 border-t border-line pt-4">
+                  <button
+                    onClick={handlePreviewDigest}
+                    disabled={previewingDigest}
+                    className="rounded-[2px] border border-line px-3 py-1.5 text-xs text-muted transition-colors hover:border-forest hover:text-forest disabled:opacity-50"
+                  >
+                    {previewingDigest ? "Checking…" : "Preview what's changed"}
+                  </button>
+                  {digestPreview && (
+                    <div className="mt-3 text-sm">
+                      {!digestPreview.available || !digestPreview.digest ? (
+                        <p className="text-faint">
+                          {digestPreview.reason ?? "Nothing to preview yet."}
+                        </p>
+                      ) : (
+                        <div className="space-y-1.5 rounded-[4px] bg-inset p-3">
+                          {digestPreview.digest.value_delta_pct != null && (
+                            <p
+                              className={
+                                (digestPreview.digest.value_delta_usd ?? 0) >= 0
+                                  ? "text-forest"
+                                  : "text-terracotta"
+                              }
+                            >
+                              {(digestPreview.digest.value_delta_usd ?? 0) >= 0
+                                ? "▲"
+                                : "▼"}{" "}
+                              {digestPreview.digest.value_delta_pct.toFixed(2)}% since{" "}
+                              {digestPreview.digest.prev_date}
+                            </p>
+                          )}
+                          {digestPreview.digest.movers.length > 0 && (
+                            <p className="font-mono text-xs text-muted">
+                              Movers:{" "}
+                              {digestPreview.digest.movers
+                                .slice(0, 3)
+                                .map(
+                                  (m) =>
+                                    `${m.symbol} ${m.change_24h_percent.toFixed(1)}%`,
+                                )
+                                .join(" · ")}
+                            </p>
+                          )}
+                          {!digestPreview.digest.notable && (
+                            <p className="text-xs italic text-faint">
+                              A quiet day — nothing major moved.
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
             </section>
           )}
 

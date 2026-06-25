@@ -36,6 +36,10 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 # plain String (matching User.risk_profile); the Literal is the boundary guard.
 Cadence = Literal["daily", "every_n_days", "weekly"]
 
+# V23: what the scheduled send contains. "full" = the full AI report (run the
+# graph); "changes_only" = a lightweight what-changed-since-last-report digest.
+DigestMode = Literal["full", "changes_only"]
+
 
 class DeliveryPreferenceRequest(BaseModel):
     """Inbound payload for PUT /api/delivery-preferences/{user_id}.
@@ -73,6 +77,12 @@ class DeliveryPreferenceRequest(BaseModel):
 
     enabled: bool = Field(
         default=True, description="Master on/off; disabled preferences are never due."
+    )
+
+    digest_mode: DigestMode = Field(
+        default="full",
+        description="'full' = the full AI report; 'changes_only' = a lightweight "
+        "what-changed-since-last-report digest (cheap, no graph run).",
     )
 
     # ─── Threshold alerts (V18) ───
@@ -164,6 +174,7 @@ class DeliveryPreferenceResponse(BaseModel):
     send_time_local: time
     timezone: str
     enabled: bool
+    digest_mode: DigestMode = "full"  # V23
     # Threshold alerts (V18). alert_state is internal (evaluator-only) and not
     # surfaced here — the form only needs the master switch, the thresholds, and
     # the cooldown.
