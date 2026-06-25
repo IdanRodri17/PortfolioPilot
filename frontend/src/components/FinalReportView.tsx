@@ -394,7 +394,7 @@ export function FinalReportView({
         <p className="mb-3 text-xs font-semibold uppercase tracking-[0.12em] text-faint">
           Summary
         </p>
-        <div className="max-w-[68ch] space-y-3">
+        <div className="space-y-3">
           {narrativeParagraphs.length === 0 && liveNarrative && (
             <p className="no-print text-sm italic leading-relaxed text-faint">
               Writing summary

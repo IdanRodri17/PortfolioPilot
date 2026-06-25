@@ -107,8 +107,9 @@ export default function HistoryPage() {
   const [selected, setSelected] = useState<ReportDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
-  // The opened report renders below a potentially long list — scroll it into
-  // view so a click always visibly lands somewhere.
+  const [openingId, setOpeningId] = useState<string | null>(null);
+  // The opened report renders directly under its own row; scroll it into view so
+  // a click always visibly lands somewhere.
   const detailRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -128,6 +129,7 @@ export default function HistoryPage() {
   }, [userId]);
 
   async function openReport(id: string) {
+    setOpeningId(id);
     setDetailLoading(true);
     setDetailError(null);
     try {
@@ -172,16 +174,17 @@ export default function HistoryPage() {
         )}
 
         {load === "ready" && reports.length > 0 && (
-          <ul className="no-print mt-8 space-y-2">
+          <ul className="mt-8 space-y-2 print:mt-0 print:space-y-0">
             {reports.map((r) => {
               const isSel = selected?.report_id === r.report_id;
+              const isOpening = openingId === r.report_id;
               const change = r.change_24h_percent ?? 0;
               const up = change >= 0;
               return (
                 <li key={r.report_id}>
                   <button
                     onClick={() => openReport(r.report_id)}
-                    className={`flex min-h-[40px] w-full items-center justify-between gap-4 rounded-[4px] border px-4 py-3 text-left transition-colors ${
+                    className={`no-print flex min-h-[40px] w-full items-center justify-between gap-4 rounded-[4px] border px-4 py-3 text-left transition-colors ${
                       isSel
                         ? "border-forest bg-wash-pos"
                         : "border-line bg-card hover:bg-inset"
@@ -210,31 +213,42 @@ export default function HistoryPage() {
                       </span>
                     )}
                   </button>
+
+                  {/* The opened report renders directly under its own row. */}
+                  {isOpening && detailLoading && (
+                    <p className="no-print mt-3 text-sm text-faint">Loading report…</p>
+                  )}
+                  {isOpening && detailError && !detailLoading && (
+                    <p className="no-print mt-3 text-sm text-terracotta">
+                      {detailError}
+                    </p>
+                  )}
+                  {isSel && selected && !detailLoading && (
+                    <div ref={detailRef} className="mt-4 scroll-mt-6">
+                      <div className="no-print mb-3 flex items-center justify-between">
+                        <h2 className="font-serif text-lg font-medium tracking-wide text-muted">
+                          Report · {new Date(selected.generated_at).toLocaleString()}
+                        </h2>
+                        <button
+                          onClick={() => {
+                            setSelected(null);
+                            setOpeningId(null);
+                          }}
+                          className="text-xs text-label transition-colors hover:text-muted"
+                        >
+                          Close ✕
+                        </button>
+                      </div>
+                      <FinalReportView
+                        report={selected.report}
+                        reportId={selected.report_id}
+                      />
+                    </div>
+                  )}
                 </li>
               );
             })}
           </ul>
-        )}
-
-        {detailLoading && <p className="mt-6 text-sm text-faint">Loading report…</p>}
-        {detailError && !detailLoading && (
-          <p className="mt-6 text-sm text-terracotta">{detailError}</p>
-        )}
-        {selected && !detailLoading && (
-          <div ref={detailRef} className="mt-8 scroll-mt-6">
-            <div className="no-print mb-3 flex items-center justify-between">
-              <h2 className="font-serif text-lg font-medium tracking-wide text-muted">
-                Report · {new Date(selected.generated_at).toLocaleString()}
-              </h2>
-              <button
-                onClick={() => setSelected(null)}
-                className="text-xs text-label transition-colors hover:text-muted"
-              >
-                Close ✕
-              </button>
-            </div>
-            <FinalReportView report={selected.report} reportId={selected.report_id} />
-          </div>
         )}
       </div>
     </main>

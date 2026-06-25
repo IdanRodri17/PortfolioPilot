@@ -70,8 +70,26 @@ export function AllocationDonut({
   const total = composition.reduce((sum, slice) => sum + slice.value_usd, 0);
 
   return (
-    <div className="flex flex-col items-center gap-4 sm:flex-row">
-      <div className="relative h-[200px] w-[200px] shrink-0">
+    <div className="space-y-3">
+      {/* Print-only stacked allocation bar — the Recharts donut renders poorly
+          in a PDF, so for print we show a crisp CSS bar (the legend carries the
+          detail). The donut itself is hidden in print. */}
+      <div className="hidden print:block">
+        <div className="flex h-3 w-full gap-0.5 overflow-hidden rounded-full">
+          {composition.map((slice, i) => (
+            <div
+              key={slice.asset}
+              style={{
+                width: `${slice.pct}%`,
+                backgroundColor: PALETTE[i % PALETTE.length],
+              }}
+            />
+          ))}
+        </div>
+      </div>
+
+      <div className="flex flex-col items-center gap-4 sm:flex-row">
+      <div className="relative h-[200px] w-[200px] shrink-0 print:hidden">
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
             <Pie
@@ -129,6 +147,7 @@ export function AllocationDonut({
           </li>
         ))}
       </ul>
+      </div>
     </div>
   );
 }
