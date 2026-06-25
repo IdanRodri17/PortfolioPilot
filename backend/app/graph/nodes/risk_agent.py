@@ -31,6 +31,7 @@ Versioning:
 """
 
 import logging
+import math
 from typing import Dict
 
 from app.graph.risk_profiles import RISK_PROFILES
@@ -68,18 +69,20 @@ def _compute_pnl(
     for symbol, qty in portfolio.items():
         buy_native = cost_basis.get(symbol)
         md = market_data.get(symbol)
-        if not buy_native or buy_native <= 0 or md is None:
+        if md is None or not buy_native or not math.isfinite(buy_native) or buy_native <= 0:
             continue
         current_usd = md["price"]
-        if not current_usd or current_usd <= 0:
-            continue  # corrupt/invalid price — skip rather than report nonsense
+        # NaN is truthy and NaN<=0 is False, so isfinite() is the real guard
+        # against a corrupt/incomplete price reaching the P/L math.
+        if not math.isfinite(current_usd) or current_usd <= 0:
+            continue
         if is_tase(symbol):
             if rate is None:
                 rate = usd_ils_rate()
             buy_usd = buy_native / rate
         else:
             buy_usd = buy_native
-        if buy_usd <= 0:
+        if not math.isfinite(buy_usd) or buy_usd <= 0:
             continue
         cost_usd = buy_usd * qty
         value_usd = current_usd * qty

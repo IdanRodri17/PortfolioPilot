@@ -180,6 +180,11 @@ def fetch_stock_data(symbol: str) -> dict:
     # holidays — we always need at least two trading days for a 24h delta.
     history = ticker.history(period="5d")
 
+    # yfinance can include rows with a NaN Close (an unfinished current-day bar,
+    # a holiday gap). Drop them — a NaN price would otherwise poison composition,
+    # P/L, and the JSON payload (NaN is not valid JSON and crashes the client).
+    history = history.dropna(subset=["Close"])
+
     if history.empty or len(history) < 2:
         raise StockDataError(
             f"No usable price history for symbol '{symbol}'. "
@@ -188,7 +193,11 @@ def fetch_stock_data(symbol: str) -> dict:
 
     latest_close = float(history["Close"].iloc[-1])
     previous_close = float(history["Close"].iloc[-2])
-    change_24h_percent = ((latest_close - previous_close) / previous_close) * 100
+    change_24h_percent = (
+        ((latest_close - previous_close) / previous_close) * 100
+        if previous_close
+        else 0.0
+    )
 
     # TASE (.TA) is quoted in agorot (1/100 ₪). Convert agorot -> ILS -> USD so
     # the whole portfolio aggregates in one base currency (USD); a mixed ILS+USD
