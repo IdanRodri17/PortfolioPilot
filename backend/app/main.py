@@ -38,6 +38,7 @@ from app.graph.persistence.store import open_store, close_store
 from app.graph.persistence.checkpointer import open_checkpointer, close_checkpointer
 from app.api.generate import router as generate_router
 from app.api.portfolio import router as portfolio_router
+from app.api.import_portfolio import router as import_router
 from app.api.reports import router as reports_router
 from app.api.memories import router as memories_router
 from app.graph.builder import set_checkpointer
@@ -147,6 +148,7 @@ def create_app() -> FastAPI:
 
     app.include_router(generate_router)
     app.include_router(portfolio_router)
+    app.include_router(import_router)
     app.include_router(reports_router)
     app.include_router(memories_router)
     app.include_router(delivery_router)

@@ -26,6 +26,8 @@ import type {
   TrendingStock,
   DigestPreview,
   WatchlistView,
+  ImportRequest,
+  ImportPreview,
 } from "@/lib/types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL;
@@ -68,6 +70,23 @@ export async function getPortfolio(userId: string): Promise<PortfolioResponse> {
     throw new Error(
       `getPortfolio(${userId}) failed: HTTP ${res.status} ${res.statusText}`,
     );
+  }
+  return res.json();
+}
+
+// Like getPortfolio, but returns null on a real 404 (user has no portfolio yet)
+// and rethrows on any other failure. The import's merge save needs this
+// distinction: a 404 means "start from empty", but a 401/500/network blip must
+// abort the save — otherwise a full-replace merge would wipe existing holdings.
+export async function getPortfolioOrNull(
+  userId: string,
+): Promise<PortfolioResponse | null> {
+  const res = await fetch(`${API_BASE}/api/portfolio/${userId}`, {
+    headers: await authHeaders(),
+  });
+  if (res.status === 404) return null;
+  if (!res.ok) {
+    throw new Error(`getPortfolio(${userId}) failed: HTTP ${res.status}`);
   }
   return res.json();
 }
@@ -141,6 +160,33 @@ export async function putWatchlist(
     body: JSON.stringify({ symbols }),
   });
   if (!res.ok) throw new Error(`putWatchlist failed: HTTP ${res.status}`);
+  return res.json();
+}
+
+// Portfolio import (V26): dry-run parse of a CSV or free-text paste into a
+// reviewable preview. Owner-scoped (same gate as upsertPortfolio); never writes.
+// Surfaces the backend's 422/429 detail (size caps / rate limit) on failure.
+export async function parsePortfolioImport(
+  input: ImportRequest,
+): Promise<ImportPreview> {
+  const res = await fetch(`${API_BASE}/api/portfolio/parse`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...(await authHeaders()) },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) {
+    const detail = await res.json().catch(() => null);
+    const fallback = `Import failed (HTTP ${res.status}).`;
+    // 403/429 return a string detail; 422 (size caps) returns a list of errors.
+    const msg =
+      typeof detail?.detail === "string"
+        ? detail.detail
+        : Array.isArray(detail?.detail)
+          ? // Pydantic prefixes validator messages with "Value error, " — strip it.
+            (detail.detail[0]?.msg?.replace(/^Value error, /, "") ?? fallback)
+          : fallback;
+    throw new Error(msg);
+  }
   return res.json();
 }
 

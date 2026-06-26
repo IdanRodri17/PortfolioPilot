@@ -49,6 +49,52 @@ export interface WatchlistView {
   items: WatchlistItem[];
 }
 
+// Portfolio import (V26). Mirrors schemas/import_portfolio.py. /api/portfolio/parse
+// is a dry-run: it returns a reviewable preview; the user saves via the existing
+// upsert. PreviewRow.status drives the same typo-vs-outage colors as the editor.
+export type ImportMode = "csv" | "text";
+
+export interface ImportRequest {
+  user_id: string;
+  mode: ImportMode;
+  content: string;
+}
+
+export type ImportRowStatus =
+  | "ok"
+  | "unknown"
+  | "unverified"
+  | "needs_quantity"
+  | "duplicate";
+
+export interface PreviewRow {
+  symbol: string;
+  input_symbol: string; // verbatim token the user typed (e.g. "Apple")
+  quantity: number | null;
+  cost_basis?: number | null; // native currency, echoed unchanged
+  status: ImportRowStatus;
+  name?: string | null;
+  price?: number | null;
+  currency?: string | null; // from the validated lookup only
+  note?: string | null;
+  line?: number | null; // source CSV line
+}
+
+export interface RowError {
+  line: number | null;
+  raw: string;
+  reason: string;
+}
+
+export interface ImportPreview {
+  mode: string;
+  rows: PreviewRow[];
+  errors: RowError[];
+  warnings: string[];
+  truncated: boolean;
+  parse_error?: string | null; // set only when the whole parse failed
+}
+
 // Trending / popular stocks for the discovery card (V22). Public market data.
 export interface TrendingStock {
   symbol: string;

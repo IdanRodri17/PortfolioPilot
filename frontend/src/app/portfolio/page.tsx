@@ -371,12 +371,20 @@ export default function PortfolioEditorPage() {
                   );
                 })}
               </div>
-              <button
-                onClick={addRow}
-                className="mt-3 text-sm text-forest transition-colors hover:text-forest-deep"
-              >
-                + Add asset
-              </button>
+              <div className="mt-3 flex flex-wrap items-center gap-4">
+                <button
+                  onClick={addRow}
+                  className="text-sm text-forest transition-colors hover:text-forest-deep"
+                >
+                  + Add asset
+                </button>
+                <Link
+                  href="/portfolio/import"
+                  className="rounded-[2px] border border-field bg-inset px-3 py-1.5 text-sm text-ink transition-colors hover:border-forest hover:text-forest"
+                >
+                  Import holdings
+                </Link>
+              </div>
             </section>
 
             {/* Save */}
