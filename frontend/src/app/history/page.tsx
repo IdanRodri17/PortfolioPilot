@@ -9,6 +9,7 @@ import {
   YAxis,
   Tooltip,
   CartesianGrid,
+  ReferenceLine,
   ResponsiveContainer,
 } from "recharts";
 import { getReportsHistory, getReport, getReportSeries } from "@/lib/api";
@@ -21,18 +22,14 @@ import { FinalReportView } from "@/components/FinalReportView";
 
 import { useUserId } from "@/lib/useUserId";
 const usd = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
-const usdCompact = new Intl.NumberFormat("en-US", {
-  style: "currency",
-  currency: "USD",
-  notation: "compact",
-  maximumFractionDigits: 1,
-});
+const pct = (v: number) => `${v >= 0 ? "+" : ""}${v.toFixed(1)}%`;
 
 interface TrendPoint {
   label: string;
-  total: number;
-  sp500: number | null;
-  nasdaq: number | null;
+  totalUsd: number;
+  portfolioPct: number;
+  sp500Pct: number | null;
+  nasdaqPct: number | null;
 }
 
 interface TrendTooltipProps {
@@ -45,16 +42,19 @@ const NASDAQ_COLOR = "#B07D2B"; // ochre
 
 function TrendTooltip({ active, payload }: TrendTooltipProps) {
   if (!active || !payload?.length) return null;
-  const point = payload[0].payload;
+  const p = payload[0].payload;
   return (
     <div className="rounded-[3px] border border-line bg-card px-3 py-2 text-xs shadow-lg">
-      <p className="text-muted">{point.label}</p>
-      <p className="font-mono text-ink">{usd.format(point.total)}</p>
-      {point.sp500 != null && (
-        <p className="font-mono text-faint">S&amp;P 500: {usd.format(point.sp500)}</p>
+      <p className="text-muted">{p.label}</p>
+      <p className="font-mono text-ink">
+        Portfolio {pct(p.portfolioPct)}{" "}
+        <span className="text-faint">({usd.format(p.totalUsd)})</span>
+      </p>
+      {p.sp500Pct != null && (
+        <p className="font-mono text-faint">S&amp;P 500 {pct(p.sp500Pct)}</p>
       )}
-      {point.nasdaq != null && (
-        <p className="font-mono text-ochre">Nasdaq: {usd.format(point.nasdaq)}</p>
+      {p.nasdaqPct != null && (
+        <p className="font-mono text-ochre">Nasdaq {pct(p.nasdaqPct)}</p>
       )}
     </div>
   );
@@ -66,25 +66,34 @@ function ValueTrendChart({ series }: { series: ReportSeriesPoint[] }) {
 
   // A line needs at least two points to read as a trend.
   if (series.length < 2) return null;
+  // Plot % RETURN from the first report (each series rebased to 0%) so the
+  // portfolio and the indices are directly comparable — raw index values are too
+  // large to show their moves next to a portfolio value (V24.2). sp500_usd /
+  // nasdaq_usd are already rebased to the first total, so dividing by it gives
+  // each index's own % return.
+  const firstTotal = series[0].total_usd;
   const data: TrendPoint[] = series.map((p) => ({
     label: new Date(p.generated_at).toLocaleDateString(undefined, {
       month: "short",
       day: "numeric",
     }),
-    total: p.total_usd,
-    sp500: p.sp500_usd ?? null,
-    nasdaq: p.nasdaq_usd ?? null,
+    totalUsd: p.total_usd,
+    portfolioPct: firstTotal ? (p.total_usd / firstTotal - 1) * 100 : 0,
+    sp500Pct:
+      firstTotal && p.sp500_usd != null ? (p.sp500_usd / firstTotal - 1) * 100 : null,
+    nasdaqPct:
+      firstTotal && p.nasdaq_usd != null
+        ? (p.nasdaq_usd / firstTotal - 1) * 100
+        : null,
   }));
-  // Each benchmark starts at the portfolio's first value, so the lines read as
-  // "vs the market". Toggleable via the checkboxes (V24.1).
-  const hasSp500 = data.some((d) => d.sp500 != null);
-  const hasNasdaq = data.some((d) => d.nasdaq != null);
+  const hasSp500 = data.some((d) => d.sp500Pct != null);
+  const hasNasdaq = data.some((d) => d.nasdaqPct != null);
 
   return (
     <section className="mt-8 rounded-[4px] border border-line bg-card p-5">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <h2 className="font-serif text-lg font-medium tracking-wide text-ink">
-          Portfolio value over time
+          Performance vs the market
         </h2>
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs">
           <span className="flex items-center gap-1.5 text-muted">
@@ -138,14 +147,16 @@ function ValueTrendChart({ series }: { series: ReportSeriesPoint[] }) {
             fontSize={11}
             tickLine={false}
             axisLine={false}
-            width={56}
-            tickFormatter={(v: number) => usdCompact.format(v)}
+            width={48}
+            tickFormatter={(v: number) => `${v.toFixed(0)}%`}
           />
           <Tooltip content={<TrendTooltip />} />
+          {/* Baseline: 0% = the first report. */}
+          <ReferenceLine y={0} stroke="#D8CFC0" strokeDasharray="2 2" />
           {hasSp500 && showSp500 && (
             <Line
               type="monotone"
-              dataKey="sp500"
+              dataKey="sp500Pct"
               stroke={SP500_COLOR}
               strokeWidth={1.5}
               strokeDasharray="4 3"
@@ -157,7 +168,7 @@ function ValueTrendChart({ series }: { series: ReportSeriesPoint[] }) {
           {hasNasdaq && showNasdaq && (
             <Line
               type="monotone"
-              dataKey="nasdaq"
+              dataKey="nasdaqPct"
               stroke={NASDAQ_COLOR}
               strokeWidth={1.5}
               strokeDasharray="2 3"
@@ -168,7 +179,7 @@ function ValueTrendChart({ series }: { series: ReportSeriesPoint[] }) {
           )}
           <Line
             type="monotone"
-            dataKey="total"
+            dataKey="portfolioPct"
             stroke="#2F5D45"
             strokeWidth={2}
             dot={{ r: 3, fill: "#2F5D45" }}
