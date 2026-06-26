@@ -50,6 +50,15 @@ frontend/src/
 
 ---
 
+## V24.1 — history chart fixes (post-smoke-test)
+
+Smoke testing surfaced three issues, all fixed:
+- **Multiple reports per day cluttered the trend and flattened the benchmark** (same-day
+  points share one daily close → flat segments). The series endpoint now keeps **one point
+  per calendar day** (the latest report that day) — e.g. 62 reports → 12 daily points.
+- **Added a Nasdaq overlay** alongside S&P 500 (both rebased; `sp500_usd` + `nasdaq_usd`).
+- **Added checkboxes** to toggle the S&P 500 and Nasdaq lines on the chart.
+
 ## Patterns established
 95. **Benchmark by rebasing, not raw price.** To compare a portfolio's trajectory to an
     index, plot the index rebased to the portfolio's starting value — it reads as "the same

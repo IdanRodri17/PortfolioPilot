@@ -209,10 +209,12 @@ export interface ReportSummary {
 
 // One point of the value trend (mirrors GET /api/reports/series/{user_id}).
 export interface ReportSeriesPoint {
-  generated_at: string; // ISO-8601, oldest first
+  generated_at: string; // ISO-8601, oldest first (one point per calendar day)
   total_usd: number;
   change_24h_percent: number | null;
-  benchmark_usd?: number | null; // V24: rebased S&P 500 line, null where unavailable
+  // V24: rebased benchmark overlays (null where unavailable).
+  sp500_usd?: number | null;
+  nasdaq_usd?: number | null;
 }
 
 export interface ReportDetail {

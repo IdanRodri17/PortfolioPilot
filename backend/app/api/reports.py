@@ -90,35 +90,49 @@ def report_series(
         .order_by(Report.generated_at.asc())
         .all()
     )
-    points = []
+    # V24.1: one point per calendar day (keep the latest report that day). Several
+    # same-day reports otherwise clutter the trend AND flatten the benchmark (every
+    # same-day point shares one daily close). rows are asc, so the last write wins.
+    by_day: dict = {}
     for r in rows:
         val = (r.raw_result or {}).get("portfolio_valuation", {})
         total = val.get("total_usd")
         if total is None:
             continue
-        points.append((r.generated_at, total, val.get("change_24h_percent")))
-
-    # V24: a rebased S&P 500 overlay — "if you'd put your starting value into the
-    # S&P." benchmark_usd begins at the first total and tracks SPY's % moves since.
-    # price_on falls back to the nearest prior close and never raises; a missing
-    # price just yields null for that point (the chart skips it).
-    spy_first = price_on("SPY", points[0][0].date()) if points else None
-
-    series = []
-    for gen_at, total, change in points:
-        benchmark_usd = None
-        if spy_first:
-            spy = price_on("SPY", gen_at.date())
-            if spy:
-                benchmark_usd = round(points[0][1] * spy / spy_first, 2)
-        series.append(
-            {
-                "generated_at": gen_at.isoformat(),
-                "total_usd": total,
-                "change_24h_percent": change,
-                "benchmark_usd": benchmark_usd,
-            }
+        by_day[r.generated_at.date()] = (
+            r.generated_at,
+            total,
+            val.get("change_24h_percent"),
         )
+    points = [by_day[d] for d in sorted(by_day)]  # oldest day first
+
+    # V24: rebased benchmark overlays (S&P 500 = SPY, Nasdaq = QQQ) — each starts
+    # at the first total and tracks its index's % moves since. price_on falls back
+    # to the nearest prior close and never raises; a missing price yields null.
+    series = []
+    if points:
+        first_total = points[0][1]
+        first_day = points[0][0].date()
+        spy_first = price_on("SPY", first_day)
+        qqq_first = price_on("QQQ", first_day)
+
+        def _rebased(symbol, first_close, on):
+            if not first_close:
+                return None
+            close = price_on(symbol, on)
+            return round(first_total * close / first_close, 2) if close else None
+
+        for gen_at, total, change in points:
+            on = gen_at.date()
+            series.append(
+                {
+                    "generated_at": gen_at.isoformat(),
+                    "total_usd": total,
+                    "change_24h_percent": change,
+                    "sp500_usd": _rebased("SPY", spy_first, on),
+                    "nasdaq_usd": _rebased("QQQ", qqq_first, on),
+                }
+            )
     return series
 
 

@@ -31,13 +31,17 @@ const usdCompact = new Intl.NumberFormat("en-US", {
 interface TrendPoint {
   label: string;
   total: number;
-  benchmark: number | null;
+  sp500: number | null;
+  nasdaq: number | null;
 }
 
 interface TrendTooltipProps {
   active?: boolean;
   payload?: { payload: TrendPoint }[];
 }
+
+const SP500_COLOR = "#A89E8E"; // warm gray
+const NASDAQ_COLOR = "#B07D2B"; // ochre
 
 function TrendTooltip({ active, payload }: TrendTooltipProps) {
   if (!active || !payload?.length) return null;
@@ -46,16 +50,20 @@ function TrendTooltip({ active, payload }: TrendTooltipProps) {
     <div className="rounded-[3px] border border-line bg-card px-3 py-2 text-xs shadow-lg">
       <p className="text-muted">{point.label}</p>
       <p className="font-mono text-ink">{usd.format(point.total)}</p>
-      {point.benchmark != null && (
-        <p className="font-mono text-faint">
-          S&amp;P 500: {usd.format(point.benchmark)}
-        </p>
+      {point.sp500 != null && (
+        <p className="font-mono text-faint">S&amp;P 500: {usd.format(point.sp500)}</p>
+      )}
+      {point.nasdaq != null && (
+        <p className="font-mono text-ochre">Nasdaq: {usd.format(point.nasdaq)}</p>
       )}
     </div>
   );
 }
 
 function ValueTrendChart({ series }: { series: ReportSeriesPoint[] }) {
+  const [showSp500, setShowSp500] = useState(true);
+  const [showNasdaq, setShowNasdaq] = useState(true);
+
   // A line needs at least two points to read as a trend.
   if (series.length < 2) return null;
   const data: TrendPoint[] = series.map((p) => ({
@@ -64,26 +72,55 @@ function ValueTrendChart({ series }: { series: ReportSeriesPoint[] }) {
       day: "numeric",
     }),
     total: p.total_usd,
-    benchmark: p.benchmark_usd ?? null,
+    sp500: p.sp500_usd ?? null,
+    nasdaq: p.nasdaq_usd ?? null,
   }));
-  // V24: the S&P overlay starts at the same value, so it reads as "vs the market".
-  const hasBenchmark = data.some((d) => d.benchmark != null);
+  // Each benchmark starts at the portfolio's first value, so the lines read as
+  // "vs the market". Toggleable via the checkboxes (V24.1).
+  const hasSp500 = data.some((d) => d.sp500 != null);
+  const hasNasdaq = data.some((d) => d.nasdaq != null);
+
   return (
     <section className="mt-8 rounded-[4px] border border-line bg-card p-5">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <h2 className="font-serif text-lg font-medium tracking-wide text-ink">
           Portfolio value over time
         </h2>
-        {hasBenchmark && (
-          <div className="flex items-center gap-3 text-xs text-faint">
-            <span className="flex items-center gap-1.5">
-              <span className="h-0.5 w-4 rounded bg-forest" /> Your portfolio
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="h-0.5 w-4 rounded bg-faint" /> S&amp;P 500
-            </span>
-          </div>
-        )}
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs">
+          <span className="flex items-center gap-1.5 text-muted">
+            <span className="h-0.5 w-4 rounded bg-forest" /> Your portfolio
+          </span>
+          {hasSp500 && (
+            <label className="flex cursor-pointer items-center gap-1.5 text-muted">
+              <input
+                type="checkbox"
+                checked={showSp500}
+                onChange={(e) => setShowSp500(e.target.checked)}
+                className="h-3 w-3 cursor-pointer accent-[#A89E8E]"
+              />
+              <span
+                className="h-0.5 w-4 rounded"
+                style={{ backgroundColor: SP500_COLOR }}
+              />{" "}
+              S&amp;P 500
+            </label>
+          )}
+          {hasNasdaq && (
+            <label className="flex cursor-pointer items-center gap-1.5 text-muted">
+              <input
+                type="checkbox"
+                checked={showNasdaq}
+                onChange={(e) => setShowNasdaq(e.target.checked)}
+                className="h-3 w-3 cursor-pointer accent-[#B07D2B]"
+              />
+              <span
+                className="h-0.5 w-4 rounded"
+                style={{ backgroundColor: NASDAQ_COLOR }}
+              />{" "}
+              Nasdaq
+            </label>
+          )}
+        </div>
       </div>
       <ResponsiveContainer width="100%" height={220}>
         <LineChart data={data} margin={{ top: 5, right: 12, left: 0, bottom: 0 }}>
@@ -105,13 +142,25 @@ function ValueTrendChart({ series }: { series: ReportSeriesPoint[] }) {
             tickFormatter={(v: number) => usdCompact.format(v)}
           />
           <Tooltip content={<TrendTooltip />} />
-          {hasBenchmark && (
+          {hasSp500 && showSp500 && (
             <Line
               type="monotone"
-              dataKey="benchmark"
-              stroke="#A89E8E"
+              dataKey="sp500"
+              stroke={SP500_COLOR}
               strokeWidth={1.5}
               strokeDasharray="4 3"
+              dot={false}
+              isAnimationActive={false}
+              connectNulls
+            />
+          )}
+          {hasNasdaq && showNasdaq && (
+            <Line
+              type="monotone"
+              dataKey="nasdaq"
+              stroke={NASDAQ_COLOR}
+              strokeWidth={1.5}
+              strokeDasharray="2 3"
               dot={false}
               isAnimationActive={false}
               connectNulls
