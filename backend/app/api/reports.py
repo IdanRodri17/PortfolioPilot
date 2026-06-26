@@ -13,6 +13,7 @@ from app.core.config import get_settings
 from app.db.base import get_db
 from app.db.models import Report
 from app.schemas.report import AskRequest
+from app.tools.stock_data import price_on
 
 router = APIRouter()
 
@@ -89,17 +90,33 @@ def report_series(
         .order_by(Report.generated_at.asc())
         .all()
     )
-    series = []
+    points = []
     for r in rows:
         val = (r.raw_result or {}).get("portfolio_valuation", {})
         total = val.get("total_usd")
         if total is None:
             continue
+        points.append((r.generated_at, total, val.get("change_24h_percent")))
+
+    # V24: a rebased S&P 500 overlay — "if you'd put your starting value into the
+    # S&P." benchmark_usd begins at the first total and tracks SPY's % moves since.
+    # price_on falls back to the nearest prior close and never raises; a missing
+    # price just yields null for that point (the chart skips it).
+    spy_first = price_on("SPY", points[0][0].date()) if points else None
+
+    series = []
+    for gen_at, total, change in points:
+        benchmark_usd = None
+        if spy_first:
+            spy = price_on("SPY", gen_at.date())
+            if spy:
+                benchmark_usd = round(points[0][1] * spy / spy_first, 2)
         series.append(
             {
-                "generated_at": r.generated_at.isoformat(),
+                "generated_at": gen_at.isoformat(),
                 "total_usd": total,
-                "change_24h_percent": val.get("change_24h_percent"),
+                "change_24h_percent": change,
+                "benchmark_usd": benchmark_usd,
             }
         )
     return series

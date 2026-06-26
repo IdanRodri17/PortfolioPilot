@@ -51,6 +51,12 @@ export interface TrendingStock {
 export type Sentiment = "Positive" | "Neutral" | "Negative";
 export type RecommendationAction = "reduce" | "increase" | "hold";
 
+export interface BenchmarkChange {
+  name: string;
+  symbol: string;
+  change_24h_percent: number;
+}
+
 export interface PortfolioValuation {
   total_usd: number;
   change_24h_percent: number;
@@ -58,6 +64,8 @@ export interface PortfolioValuation {
   total_cost_basis_usd?: number | null;
   total_gain_loss_usd?: number | null;
   total_gain_loss_pct?: number | null;
+  // Market benchmarks' 24h change (V24); absent for pre-V24 reports.
+  benchmark_24h?: BenchmarkChange[];
 }
 
 export interface MarketInsight {
@@ -204,6 +212,7 @@ export interface ReportSeriesPoint {
   generated_at: string; // ISO-8601, oldest first
   total_usd: number;
   change_24h_percent: number | null;
+  benchmark_usd?: number | null; // V24: rebased S&P 500 line, null where unavailable
 }
 
 export interface ReportDetail {

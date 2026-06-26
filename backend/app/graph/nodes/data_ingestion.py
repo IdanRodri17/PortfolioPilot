@@ -23,6 +23,29 @@ from app.tools.stock_data import (
 
 logger = logging.getLogger(__name__)
 
+# V24: market benchmarks fetched alongside holdings so the synthesizer can attach
+# them to the valuation ("are you beating the market?"). SPY ≈ S&P 500, QQQ ≈ Nasdaq.
+_BENCHMARKS = [("SPY", "S&P 500"), ("QQQ", "Nasdaq 100")]
+
+
+def _fetch_benchmarks() -> list[dict]:
+    """Best-effort 24h change for the market benchmarks. A failed fetch is just
+    omitted — the comparison is a nice-to-have, never blocks the report."""
+    out: list[dict] = []
+    for symbol, name in _BENCHMARKS:
+        try:
+            quote = fetch_stock_data(symbol)
+            out.append(
+                {
+                    "name": name,
+                    "symbol": symbol,
+                    "change_24h_percent": quote["change_24h_percent"],
+                }
+            )
+        except StockDataError as e:
+            logger.warning("data_ingestion: benchmark %s failed — %s", symbol, e)
+    return out
+
 
 def data_ingestion(state: PortfolioState) -> dict:
     """Populate market_data for every symbol in state["portfolio"].
@@ -58,4 +81,4 @@ def data_ingestion(state: PortfolioState) -> dict:
         except StockDataError as e:
             logger.warning("data_ingestion: skipping %s — %s", symbol, e)
             # Continue with remaining symbols; do not bubble.
-    return {"market_data": market_data}
+    return {"market_data": market_data, "benchmark": _fetch_benchmarks()}

@@ -324,6 +324,23 @@ export function FinalReportView({
                 <span className="font-normal text-faint">return on cost</span>
               </p>
             )}
+            {/* Benchmark comparison (V24) — your 24h vs the market */}
+            {val.benchmark_24h && val.benchmark_24h.length > 0 && (
+              <p className="mt-1.5 text-xs text-faint">
+                vs{" "}
+                {val.benchmark_24h.map((b, i) => (
+                  <span key={b.symbol}>
+                    {i > 0 && " · "}
+                    {b.name}{" "}
+                    <span
+                      className={`font-mono ${b.change_24h_percent >= 0 ? "text-forest" : "text-terracotta"}`}
+                    >
+                      {formatPercent(b.change_24h_percent)}
+                    </span>
+                  </span>
+                ))}
+              </p>
+            )}
           </div>
           <div className="min-w-[10rem]">
             <p className="text-xs font-semibold uppercase tracking-[0.12em] text-faint">

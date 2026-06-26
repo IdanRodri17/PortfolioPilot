@@ -44,6 +44,7 @@ from app.core.config import get_settings
 from app.graph.state import PortfolioState
 from app.schemas.report import (
     AssetAllocation,
+    BenchmarkChange,
     FinalReport,
     ReportBody,
     SectorAllocation,
@@ -412,6 +413,11 @@ def synthesizer(state: PortfolioState) -> dict:
     report.portfolio_valuation.change_24h_percent = risk_analysis.get(
         "total_change_24h_percent", report.portfolio_valuation.change_24h_percent
     )
+
+    # V24: market benchmarks (deterministic, from data_ingestion) for comparison.
+    report.portfolio_valuation.benchmark_24h = [
+        BenchmarkChange(**b) for b in (state.get("benchmark") or [])
+    ]
 
     # V20: attach the deterministic cost-basis P/L totals to the valuation (never
     # LLM-emitted). None unless the user set buy prices for some holdings.

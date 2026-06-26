@@ -70,6 +70,10 @@ class PortfolioState(TypedDict, total=False):
     market_data: Dict[str, dict]
     # e.g. {"AAPL": {"price": 220.5, "change_24h_percent": 1.2}}
 
+    benchmark: List[dict]
+    # V24: market benchmarks' 24h move, e.g. [{"name": "S&P 500", "symbol":
+    # "SPY", "change_24h_percent": 0.8}]. Single writer (data_ingestion).
+
     # ─── Populated by parallel sentiment_agent branches (V3 step 3) ───
     # The `add` reducer is what makes parallel Send() fan-out safe.
     # Without it, the last branch to return clobbers the previous four

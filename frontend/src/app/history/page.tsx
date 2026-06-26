@@ -31,6 +31,7 @@ const usdCompact = new Intl.NumberFormat("en-US", {
 interface TrendPoint {
   label: string;
   total: number;
+  benchmark: number | null;
 }
 
 interface TrendTooltipProps {
@@ -45,6 +46,11 @@ function TrendTooltip({ active, payload }: TrendTooltipProps) {
     <div className="rounded-[3px] border border-line bg-card px-3 py-2 text-xs shadow-lg">
       <p className="text-muted">{point.label}</p>
       <p className="font-mono text-ink">{usd.format(point.total)}</p>
+      {point.benchmark != null && (
+        <p className="font-mono text-faint">
+          S&amp;P 500: {usd.format(point.benchmark)}
+        </p>
+      )}
     </div>
   );
 }
@@ -58,12 +64,27 @@ function ValueTrendChart({ series }: { series: ReportSeriesPoint[] }) {
       day: "numeric",
     }),
     total: p.total_usd,
+    benchmark: p.benchmark_usd ?? null,
   }));
+  // V24: the S&P overlay starts at the same value, so it reads as "vs the market".
+  const hasBenchmark = data.some((d) => d.benchmark != null);
   return (
     <section className="mt-8 rounded-[4px] border border-line bg-card p-5">
-      <h2 className="mb-4 font-serif text-lg font-medium tracking-wide text-ink">
-        Portfolio value over time
-      </h2>
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+        <h2 className="font-serif text-lg font-medium tracking-wide text-ink">
+          Portfolio value over time
+        </h2>
+        {hasBenchmark && (
+          <div className="flex items-center gap-3 text-xs text-faint">
+            <span className="flex items-center gap-1.5">
+              <span className="h-0.5 w-4 rounded bg-forest" /> Your portfolio
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="h-0.5 w-4 rounded bg-faint" /> S&amp;P 500
+            </span>
+          </div>
+        )}
+      </div>
       <ResponsiveContainer width="100%" height={220}>
         <LineChart data={data} margin={{ top: 5, right: 12, left: 0, bottom: 0 }}>
           <CartesianGrid stroke="#ECE5D8" strokeDasharray="3 3" />
@@ -84,6 +105,18 @@ function ValueTrendChart({ series }: { series: ReportSeriesPoint[] }) {
             tickFormatter={(v: number) => usdCompact.format(v)}
           />
           <Tooltip content={<TrendTooltip />} />
+          {hasBenchmark && (
+            <Line
+              type="monotone"
+              dataKey="benchmark"
+              stroke="#A89E8E"
+              strokeWidth={1.5}
+              strokeDasharray="4 3"
+              dot={false}
+              isAnimationActive={false}
+              connectNulls
+            />
+          )}
           <Line
             type="monotone"
             dataKey="total"

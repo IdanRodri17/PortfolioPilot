@@ -60,6 +60,16 @@ class RebalancingRecommendation(BaseModel):
     )
 
 
+class BenchmarkChange(BaseModel):
+    """One market benchmark's 24h move, for 'are you beating the market?' (V24)."""
+
+    name: str = Field(description="Display name, e.g. 'S&P 500'.")
+    symbol: str = Field(description="Ticker proxy, e.g. 'SPY'.")
+    change_24h_percent: float = Field(
+        description="The benchmark's percent change over the last 24 hours."
+    )
+
+
 class PortfolioValuation(BaseModel):
     """Aggregate valuation snapshot at report generation time."""
 
@@ -69,6 +79,9 @@ class PortfolioValuation(BaseModel):
     change_24h_percent: float = Field(
         description="Weighted change in total portfolio value over the last 24 hours, as a percent."
     )
+    # Market benchmarks' 24h change (V24) — deterministic, attached by the
+    # synthesizer; empty for reports archived before V24.
+    benchmark_24h: List[BenchmarkChange] = Field(default_factory=list)
     # Cost-basis P/L (V20) — deterministic, attached by the synthesizer from
     # risk_agent. Optional/None for reports without buy prices (and pre-V20 ones).
     total_cost_basis_usd: float | None = Field(
