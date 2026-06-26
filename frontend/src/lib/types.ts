@@ -38,6 +38,17 @@ export interface PortfolioResponse {
   updated_at: string; // ISO-8601 timestamp from the server
 }
 
+// Watchlist (V25): tickers the user tracks but doesn't own.
+export interface WatchlistItem {
+  symbol: string;
+  price: number | null;
+  change_24h_percent: number | null;
+}
+export interface WatchlistView {
+  symbols: string[];
+  items: WatchlistItem[];
+}
+
 // Trending / popular stocks for the discovery card (V22). Public market data.
 export interface TrendingStock {
   symbol: string;

@@ -18,6 +18,7 @@ import { LiveStatusFeed } from "@/components/LiveStatusFeed";
 import { FinalReportView } from "@/components/FinalReportView";
 import { PortfolioOverview } from "@/components/PortfolioOverview";
 import { TrendingStocks } from "@/components/TrendingStocks";
+import { WatchlistCard } from "@/components/WatchlistCard";
 import { MemoryReviewModal } from "@/components/MemoryReviewModal";
 import { signOut, useSession } from "next-auth/react";
 
@@ -132,6 +133,9 @@ export default function DashboardPage() {
               narrativeStreaming={narrativeStreaming}
             />
           )}
+
+          {/* Watchlist: tickers you track but don't own (V25) */}
+          <WatchlistCard userId={userId} canEdit />
 
           {/* Discovery: popular stocks you don't hold (V22) */}
           <TrendingStocks userId={userId} />

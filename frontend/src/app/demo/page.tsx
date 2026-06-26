@@ -19,6 +19,7 @@ import { LiveStatusFeed } from "@/components/LiveStatusFeed";
 import { FinalReportView } from "@/components/FinalReportView";
 import { PortfolioOverview } from "@/components/PortfolioOverview";
 import { TrendingStocks } from "@/components/TrendingStocks";
+import { WatchlistCard } from "@/components/WatchlistCard";
 
 const DEMO_USER = "idan_demo";
 
@@ -99,6 +100,9 @@ export default function DemoPage() {
               narrativeStreaming={narrativeStreaming}
             />
           )}
+
+          {/* Watchlist: tickers tracked but not owned — read-only on the demo (V25) */}
+          <WatchlistCard userId={DEMO_USER} />
 
           {/* Discovery: popular stocks (V22) */}
           <TrendingStocks userId={DEMO_USER} />

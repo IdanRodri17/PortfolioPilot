@@ -29,7 +29,11 @@ from sqlalchemy.orm import Session
 from app.api.deps import require_owner_or_demo, require_user
 from app.db.base import get_db
 from app.db.models import User, Portfolio
-from app.schemas.portfolio import PortfolioRequest, PortfolioResponse
+from app.schemas.portfolio import (
+    PortfolioRequest,
+    PortfolioResponse,
+    WatchlistRequest,
+)
 from app.tools.stock_data import (
     StockDataError,
     fetch_trending_quotes,
@@ -156,6 +160,59 @@ def get_portfolio(
             detail=f"No portfolio found for user_id '{user_id}'.",
         )
     return _to_response(user, user.portfolio)
+
+
+@router.get(
+    "/api/watchlist/{user_id}",
+    summary="Tracked tickers (not owned) with live price + 24h change (V25)",
+)
+def get_watchlist(
+    user_id: str,
+    db: Session = Depends(get_db),
+    _owner: str = Depends(require_owner_or_demo),
+) -> dict:
+    """Return the user's watchlist symbols + a live quote for each. Demo-readable
+    (same gate as the portfolio). A symbol whose quote can't be fetched still
+    appears, with null price/change, so the user never loses track of it."""
+    user = db.get(User, user_id)
+    symbols = list(user.watchlist or []) if user else []
+    quotes = fetch_trending_quotes(symbols) if symbols else {}
+    items = [
+        {
+            "symbol": s,
+            "price": quotes.get(s, {}).get("price"),
+            "change_24h_percent": quotes.get(s, {}).get("change_24h_percent"),
+        }
+        for s in symbols
+    ]
+    return {"symbols": symbols, "items": items}
+
+
+@router.put(
+    "/api/watchlist/{user_id}",
+    summary="Replace the user's watchlist (V25)",
+)
+def put_watchlist(
+    user_id: str,
+    payload: WatchlistRequest,
+    db: Session = Depends(get_db),
+    current_user: str = Depends(require_user),
+) -> dict:
+    """Full-replace the watchlist (normalized + deduped at the boundary)."""
+    if user_id != current_user:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only modify your own watchlist.",
+        )
+    user = db.get(User, user_id)
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No user found for user_id '{user_id}'.",
+        )
+    user.watchlist = payload.symbols  # reassign so SQLAlchemy flags the JSONB dirty
+    db.commit()
+    return {"symbols": payload.symbols}
 
 
 @router.get(

@@ -25,6 +25,7 @@ import type {
   AlertPreview,
   TrendingStock,
   DigestPreview,
+  WatchlistView,
 } from "@/lib/types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL;
@@ -118,6 +119,28 @@ export async function getReportsHistory(userId: string): Promise<ReportSummary[]
 export async function getReport(reportId: string): Promise<ReportDetail> {
   const res = await fetch(`${API_BASE}/api/reports/${reportId}`);
   if (!res.ok) throw new Error(`getReport failed: HTTP ${res.status}`);
+  return res.json();
+}
+
+// Watchlist (V25): tracked tickers + live quotes. Demo-readable; PUT needs auth.
+export async function getWatchlist(userId: string): Promise<WatchlistView> {
+  const res = await fetch(`${API_BASE}/api/watchlist/${userId}`, {
+    headers: await authHeaders(),
+  });
+  if (!res.ok) throw new Error(`getWatchlist failed: HTTP ${res.status}`);
+  return res.json();
+}
+
+export async function putWatchlist(
+  userId: string,
+  symbols: string[],
+): Promise<{ symbols: string[] }> {
+  const res = await fetch(`${API_BASE}/api/watchlist/${userId}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...(await authHeaders()) },
+    body: JSON.stringify({ symbols }),
+  });
+  if (!res.ok) throw new Error(`putWatchlist failed: HTTP ${res.status}`);
   return res.json();
 }
 

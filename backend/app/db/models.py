@@ -43,6 +43,10 @@ class User(Base):
         String, nullable=False
     )  # "conservative" | "balanced" | "aggressive"
 
+    # V25: tickers the user tracks but doesn't own — a list of symbols, e.g.
+    # ["NVDA", "META"]. Additive + backward-compatible (default empty).
+    watchlist = Column(JSONB, nullable=False, default=list, server_default="[]")
+
     # Timestamps come from Postgres (func.now()), not Python.
     # Two benefits over datetime.utcnow as a Python-side default:
     #   1. Avoids the Python 3.12 datetime.utcnow() DeprecationWarning.

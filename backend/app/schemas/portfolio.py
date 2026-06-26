@@ -13,7 +13,7 @@ Versioning:
 """
 
 from datetime import datetime
-from typing import Dict, Literal
+from typing import Dict, List, Literal
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -63,6 +63,28 @@ class PortfolioRequest(BaseModel):
             if price <= 0:
                 raise ValueError(f"Buy price for '{symbol}' must be > 0 (got {price}).")
         return v
+
+
+class WatchlistRequest(BaseModel):
+    """Inbound payload for PUT /api/watchlist/{user_id} (V25) — full-replace list
+    of tickers the user tracks but doesn't own."""
+
+    symbols: List[str] = Field(
+        default_factory=list, description="Tickers to watch, e.g. ['NVDA', 'META']."
+    )
+
+    @field_validator("symbols")
+    @classmethod
+    def _normalize(cls, v: List[str]) -> List[str]:
+        """Upper-case, trim, drop blanks/dupes; cap the list to keep it sane."""
+        out: List[str] = []
+        for s in v:
+            sym = s.strip().upper()
+            if sym and sym not in out:
+                out.append(sym)
+        if len(out) > 30:
+            raise ValueError("Watchlist is limited to 30 symbols.")
+        return out
 
 
 class PortfolioResponse(BaseModel):

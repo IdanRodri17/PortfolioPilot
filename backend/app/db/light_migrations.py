@@ -47,6 +47,9 @@ _STATEMENTS = (
     # ── V23: digest mode (full report vs what-changed) on delivery_preferences ──
     "ALTER TABLE delivery_preferences ADD COLUMN IF NOT EXISTS "
     "digest_mode VARCHAR NOT NULL DEFAULT 'full'",
+    # ── V25: watchlist (tracked tickers) on users ──
+    "ALTER TABLE users ADD COLUMN IF NOT EXISTS "
+    "watchlist JSONB NOT NULL DEFAULT '[]'::jsonb",
 )
 
 
